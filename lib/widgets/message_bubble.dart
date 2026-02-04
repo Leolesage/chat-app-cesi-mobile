@@ -30,7 +30,7 @@ class MessageBubble extends StatelessWidget {
     return Align(
       alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 280),
+        constraints: const BoxConstraints(maxWidth: 300),
         child: Container(
           margin: const EdgeInsets.symmetric(vertical: 6),
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
@@ -63,13 +63,26 @@ class MessageBubble extends StatelessWidget {
               ),
               if (timeLabel != null) ...[
                 const SizedBox(height: 6),
-                Text(
-                  timeLabel,
-                  style: TextStyle(
-                    color: textColor.withOpacity(0.6),
-                    fontSize: 11,
-                    letterSpacing: 0.4,
-                  ),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      timeLabel,
+                      style: TextStyle(
+                        color: textColor.withOpacity(0.6),
+                        fontSize: 11,
+                        letterSpacing: 0.4,
+                      ),
+                    ),
+                    if (isMe) ...[
+                      const SizedBox(width: 6),
+                      Icon(
+                        Icons.check,
+                        size: 14,
+                        color: textColor.withOpacity(0.6),
+                      ),
+                    ],
+                  ],
                 ),
               ],
             ],

@@ -8,6 +8,7 @@ import '../models/user.dart';
 import '../services/api_client.dart';
 import '../widgets/app_background.dart';
 import '../widgets/message_bubble.dart';
+import '../widgets/user_avatar.dart';
 
 class ChatScreen extends StatefulWidget {
   const ChatScreen({
@@ -183,18 +184,64 @@ class _ChatScreenState extends State<ChatScreen> {
     });
   }
 
+  Widget _buildEmptyState() {
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            Icons.chat_bubble_outline,
+            size: 40,
+            color: Theme.of(context).colorScheme.primary.withOpacity(0.6),
+          ),
+          const SizedBox(height: 12),
+          const Text('Aucun message pour l\'instant.'),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.peer.username),
+        titleSpacing: 0,
+        title: Row(
+          children: [
+            UserAvatar(
+              label: widget.peer.username,
+              size: 40,
+            ),
+            const SizedBox(width: 12),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(widget.peer.username),
+                Text(
+                  'En ligne',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              ],
+            ),
+          ],
+        ),
         actions: [
           IconButton(
-            tooltip: 'Rafraichir',
-            onPressed: _loadInitial,
-            icon: const Icon(Icons.refresh),
+            tooltip: 'Audio',
+            onPressed: () {},
+            icon: const Icon(Icons.call),
+          ),
+          IconButton(
+            tooltip: 'Video',
+            onPressed: () {},
+            icon: const Icon(Icons.videocam),
+          ),
+          IconButton(
+            tooltip: 'Plus',
+            onPressed: () {},
+            icon: const Icon(Icons.more_vert),
           ),
         ],
       ),
@@ -205,9 +252,7 @@ class _ChatScreenState extends State<ChatScreen> {
               child: _isLoading
                   ? const Center(child: CircularProgressIndicator())
                   : _messages.isEmpty
-                      ? const Center(
-                          child: Text('Aucun message pour l\'instant.'),
-                        )
+                      ? _buildEmptyState()
                       : ListView.builder(
                           controller: _scrollController,
                           padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
@@ -224,7 +269,7 @@ class _ChatScreenState extends State<ChatScreen> {
             ),
             Container(
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.95),
+                color: Colors.white.withOpacity(0.96),
                 boxShadow: [
                   BoxShadow(
                     color: Colors.black.withOpacity(0.06),
@@ -241,6 +286,13 @@ class _ChatScreenState extends State<ChatScreen> {
                   ),
                   child: Row(
                     children: [
+                      IconButton(
+                        onPressed: () {},
+                        icon: Icon(
+                          Icons.add_circle_outline,
+                          color: colorScheme.primary,
+                        ),
+                      ),
                       Expanded(
                         child: TextField(
                           controller: _messageController,

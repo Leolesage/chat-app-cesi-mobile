@@ -8,31 +8,37 @@ class ChatApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    const brand = Color(0xFF0C8A6A);
+    const surface = Color(0xFFF6F4EF);
+    const surfaceAlt = Color(0xFFE7F3EF);
+    const outline = Color(0xFFE3DED4);
+
     final colorScheme = ColorScheme.fromSeed(
-      seedColor: const Color(0xFF0E7C7B),
+      seedColor: brand,
       brightness: Brightness.light,
-      surface: const Color(0xFFF7F4F0),
+      surface: surface,
+      surfaceVariant: surfaceAlt,
     );
 
-    final baseTextTheme = GoogleFonts.manropeTextTheme();
+    final baseTextTheme = GoogleFonts.plusJakartaSansTextTheme();
 
     return MaterialApp(
       title: 'CESI Chat',
       theme: ThemeData(
         colorScheme: colorScheme,
-        scaffoldBackgroundColor: const Color(0xFFF7F4F0),
+        scaffoldBackgroundColor: surface,
         textTheme: baseTextTheme.copyWith(
-          headlineLarge: GoogleFonts.fraunces(
+          headlineLarge: GoogleFonts.poppins(
             fontSize: 34,
             fontWeight: FontWeight.w700,
             color: colorScheme.onSurface,
           ),
-          headlineSmall: GoogleFonts.fraunces(
+          headlineSmall: GoogleFonts.poppins(
             fontSize: 22,
             fontWeight: FontWeight.w600,
             color: colorScheme.onSurface,
           ),
-          titleLarge: GoogleFonts.fraunces(
+          titleLarge: GoogleFonts.poppins(
             fontSize: 20,
             fontWeight: FontWeight.w600,
             color: colorScheme.onSurface,
@@ -40,46 +46,42 @@ class ChatApp extends StatelessWidget {
           titleMedium: baseTextTheme.titleMedium?.copyWith(
             fontWeight: FontWeight.w600,
           ),
-          bodyLarge: baseTextTheme.bodyLarge?.copyWith(
-            height: 1.4,
-          ),
-          bodyMedium: baseTextTheme.bodyMedium?.copyWith(
-            height: 1.4,
-          ),
+          bodyLarge: baseTextTheme.bodyLarge?.copyWith(height: 1.4),
+          bodyMedium: baseTextTheme.bodyMedium?.copyWith(height: 1.4),
         ),
         appBarTheme: AppBarTheme(
           backgroundColor: Colors.transparent,
           elevation: 0,
           scrolledUnderElevation: 0,
           iconTheme: IconThemeData(color: colorScheme.onSurface),
-          titleTextStyle: GoogleFonts.fraunces(
+          titleTextStyle: GoogleFonts.poppins(
             fontSize: 20,
             fontWeight: FontWeight.w600,
             color: colorScheme.onSurface,
           ),
         ),
         cardTheme: CardThemeData(
-          color: Colors.white.withOpacity(0.92),
+          color: Colors.white.withOpacity(0.95),
           elevation: 0,
           margin: EdgeInsets.zero,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
+            borderRadius: BorderRadius.circular(22),
           ),
         ),
         inputDecorationTheme: InputDecorationTheme(
           filled: true,
           fillColor: Colors.white,
           border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(16),
-            borderSide: const BorderSide(color: Color(0xFFE3E0D8)),
+            borderRadius: BorderRadius.circular(18),
+            borderSide: const BorderSide(color: outline),
           ),
           enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(16),
-            borderSide: const BorderSide(color: Color(0xFFE3E0D8)),
+            borderRadius: BorderRadius.circular(18),
+            borderSide: const BorderSide(color: outline),
           ),
           focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(16),
-            borderSide: BorderSide(color: colorScheme.primary, width: 1.4),
+            borderRadius: BorderRadius.circular(18),
+            borderSide: BorderSide(color: colorScheme.primary, width: 1.5),
           ),
           contentPadding: const EdgeInsets.symmetric(
             horizontal: 16,
@@ -105,6 +107,26 @@ class ChatApp extends StatelessWidget {
             ),
           ),
         ),
+        chipTheme: ChipThemeData(
+          backgroundColor: colorScheme.primaryContainer,
+          labelStyle: baseTextTheme.labelMedium?.copyWith(
+            color: colorScheme.onPrimaryContainer,
+            fontWeight: FontWeight.w600,
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 8),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(999),
+          ),
+        ),
+        listTileTheme: ListTileThemeData(
+          iconColor: colorScheme.primary,
+          textColor: colorScheme.onSurface,
+        ),
+        dividerTheme: const DividerThemeData(
+          color: outline,
+          thickness: 1,
+          space: 24,
+        ),
         snackBarTheme: SnackBarThemeData(
           backgroundColor: colorScheme.onSurface,
           contentTextStyle: baseTextTheme.bodyMedium?.copyWith(
@@ -114,11 +136,6 @@ class ChatApp extends StatelessWidget {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
           ),
-        ),
-        dividerTheme: const DividerThemeData(
-          color: Color(0xFFE6E1D8),
-          thickness: 1,
-          space: 24,
         ),
         useMaterial3: true,
       ),

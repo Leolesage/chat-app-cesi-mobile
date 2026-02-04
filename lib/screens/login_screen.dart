@@ -1,8 +1,9 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 
 import '../models/user.dart';
 import '../services/api_client.dart';
 import '../widgets/app_background.dart';
+import '../widgets/user_avatar.dart';
 import 'users_screen.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -135,6 +136,21 @@ class _LoginScreenState extends State<LoginScreen> {
                       padding: const EdgeInsets.all(20),
                       child: Column(
                         children: [
+                          Row(
+                            children: [
+                              const UserAvatar(label: 'C'),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Text(
+                                  'Bienvenue sur le chat CESI',
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .titleMedium,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 20),
                           TextField(
                             controller: _usernameController,
                             textInputAction: TextInputAction.next,
@@ -176,6 +192,35 @@ class _LoginScreenState extends State<LoginScreen> {
                         ],
                       ),
                     ),
+                  ),
+                  const SizedBox(height: 20),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Chip(
+                        label: const Text('Prive'),
+                        padding: const EdgeInsets.symmetric(horizontal: 10),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Chip(
+                        label: const Text('Rapide'),
+                        padding: const EdgeInsets.symmetric(horizontal: 10),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Chip(
+                        label: const Text('Campus'),
+                        padding: const EdgeInsets.symmetric(horizontal: 10),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),

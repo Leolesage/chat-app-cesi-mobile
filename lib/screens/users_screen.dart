@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../models/user.dart';
 import '../services/api_client.dart';
 import '../widgets/app_background.dart';
+import '../widgets/user_avatar.dart';
 import 'chat_screen.dart';
 import 'login_screen.dart';
 
@@ -21,12 +22,28 @@ class UsersScreen extends StatefulWidget {
 }
 
 class _UsersScreenState extends State<UsersScreen> {
+  final _searchController = TextEditingController();
   late Future<List<UserSummary>> _usersFuture;
+  String _query = '';
 
   @override
   void initState() {
     super.initState();
     _usersFuture = _fetchUsers();
+    _searchController.addListener(_handleSearchChange);
+  }
+
+  @override
+  void dispose() {
+    _searchController.removeListener(_handleSearchChange);
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  void _handleSearchChange() {
+    setState(() {
+      _query = _searchController.text.trim().toLowerCase();
+    });
   }
 
   void _showMessage(String message) {
@@ -72,17 +89,31 @@ class _UsersScreenState extends State<UsersScreen> {
     );
   }
 
+  List<UserSummary> _filterUsers(List<UserSummary> users) {
+    if (_query.isEmpty) {
+      return users;
+    }
+
+    return users
+        .where((user) => user.username.toLowerCase().contains(_query))
+        .toList();
+  }
+
   @override
   Widget build(BuildContext context) {
     final statusText = widget.session.created
         ? 'Compte cree avec succes.'
         : 'Connexion reussie.';
-    final colorScheme = Theme.of(context).colorScheme;
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Utilisateurs'),
+        title: const Text('Chats'),
         actions: [
+          IconButton(
+            tooltip: 'Rafraichir',
+            onPressed: _refresh,
+            icon: const Icon(Icons.refresh_rounded),
+          ),
           TextButton(
             onPressed: () {
               Navigator.of(context).pushReplacement(
@@ -105,19 +136,7 @@ class _UsersScreenState extends State<UsersScreen> {
                     padding: const EdgeInsets.all(20),
                     child: Row(
                       children: [
-                        CircleAvatar(
-                          radius: 26,
-                          backgroundColor: colorScheme.primary,
-                          child: Text(
-                            widget.session.username
-                                .substring(0, 1)
-                                .toUpperCase(),
-                            style: TextStyle(
-                              color: colorScheme.onPrimary,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ),
+                        UserAvatar(label: widget.session.username),
                         const SizedBox(width: 16),
                         Expanded(
                           child: Column(
@@ -138,7 +157,9 @@ class _UsersScreenState extends State<UsersScreen> {
                                     .textTheme
                                     .bodySmall
                                     ?.copyWith(
-                                      color: colorScheme.onSurface
+                                      color: Theme.of(context)
+                                          .colorScheme
+                                          .onSurface
                                           .withOpacity(0.7),
                                     ),
                               ),
@@ -151,10 +172,18 @@ class _UsersScreenState extends State<UsersScreen> {
                 ),
                 const SizedBox(height: 20),
                 Text(
-                  'Choisis quelqu\'un pour demarrer un chat',
-                  style: Theme.of(context).textTheme.titleMedium,
+                  'Discussions',
+                  style: Theme.of(context).textTheme.titleLarge,
                 ),
                 const SizedBox(height: 12),
+                TextField(
+                  controller: _searchController,
+                  decoration: const InputDecoration(
+                    hintText: 'Rechercher un utilisateur',
+                    prefixIcon: Icon(Icons.search_rounded),
+                  ),
+                ),
+                const SizedBox(height: 16),
                 Expanded(
                   child: FutureBuilder<List<UserSummary>>(
                     future: _usersFuture,
@@ -182,7 +211,10 @@ class _UsersScreenState extends State<UsersScreen> {
                         );
                       }
 
-                      final users = snapshot.data ?? <UserSummary>[];
+                      final users = _filterUsers(
+                        snapshot.data ?? <UserSummary>[],
+                      );
+
                       if (users.isEmpty) {
                         return Center(
                           child: Column(
@@ -212,26 +244,19 @@ class _UsersScreenState extends State<UsersScreen> {
                               const SizedBox(height: 12),
                           itemBuilder: (context, index) {
                             final user = users[index];
-                            final label = user.username.trim();
-                            final initial = label.isEmpty
-                                ? '?'
-                                : label.substring(0, 1).toUpperCase();
 
                             return Card(
                               child: ListTile(
-                                leading: CircleAvatar(
-                                  backgroundColor:
-                                      colorScheme.secondaryContainer,
-                                  child: Text(
-                                    initial,
-                                    style: TextStyle(
-                                      color: colorScheme.onSecondaryContainer,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
+                                contentPadding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: 6,
+                                ),
+                                leading: UserAvatar(
+                                  label: user.username,
+                                  isOnline: true,
                                 ),
                                 title: Text(user.username),
-                                subtitle: Text('ID: ${user.id}'),
+                                subtitle: const Text('Disponible'),
                                 trailing: const Icon(Icons.chevron_right),
                                 onTap: () => _openChat(user),
                               ),
