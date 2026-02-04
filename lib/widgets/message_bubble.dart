@@ -17,10 +17,10 @@ class MessageBubble extends StatelessWidget {
     final colorScheme = Theme.of(context).colorScheme;
     final bubbleColor = isMe
         ? colorScheme.primaryContainer
-        : colorScheme.surfaceVariant;
+        : Colors.white.withOpacity(0.92);
     final textColor = isMe
         ? colorScheme.onPrimaryContainer
-        : colorScheme.onSurfaceVariant;
+        : colorScheme.onSurface;
 
     final createdAt = message.createdAt;
     final timeLabel = createdAt == null
@@ -32,28 +32,43 @@ class MessageBubble extends StatelessWidget {
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 280),
         child: Container(
-          margin: const EdgeInsets.symmetric(vertical: 4),
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          margin: const EdgeInsets.symmetric(vertical: 6),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
           decoration: BoxDecoration(
             color: bubbleColor,
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.only(
+              topLeft: const Radius.circular(18),
+              topRight: const Radius.circular(18),
+              bottomLeft: Radius.circular(isMe ? 18 : 6),
+              bottomRight: Radius.circular(isMe ? 6 : 18),
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.05),
+                blurRadius: 12,
+                offset: const Offset(0, 6),
+              ),
+            ],
           ),
           child: Column(
-            crossAxisAlignment: isMe
-                ? CrossAxisAlignment.end
-                : CrossAxisAlignment.start,
+            crossAxisAlignment:
+                isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
             children: [
               Text(
                 message.body,
-                style: TextStyle(color: textColor),
+                style: TextStyle(
+                  color: textColor,
+                  fontWeight: FontWeight.w500,
+                ),
               ),
               if (timeLabel != null) ...[
-                const SizedBox(height: 4),
+                const SizedBox(height: 6),
                 Text(
                   timeLabel,
                   style: TextStyle(
-                    color: textColor.withOpacity(0.7),
+                    color: textColor.withOpacity(0.6),
                     fontSize: 11,
+                    letterSpacing: 0.4,
                   ),
                 ),
               ],
