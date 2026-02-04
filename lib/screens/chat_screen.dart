@@ -229,16 +229,6 @@ class _ChatScreenState extends State<ChatScreen> {
         ),
         actions: [
           IconButton(
-            tooltip: 'Audio',
-            onPressed: () {},
-            icon: const Icon(Icons.call),
-          ),
-          IconButton(
-            tooltip: 'Video',
-            onPressed: () {},
-            icon: const Icon(Icons.videocam),
-          ),
-          IconButton(
             tooltip: 'Plus',
             onPressed: () {},
             icon: const Icon(Icons.more_vert),
