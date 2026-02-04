@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -232,6 +233,51 @@ class UserSummary {
   }
 }
 
+class ChatMessage {
+  ChatMessage({
+    required this.id,
+    required this.senderId,
+    required this.receiverId,
+    required this.body,
+    this.createdAt,
+  });
+
+  final int id;
+  final int senderId;
+  final int receiverId;
+  final String body;
+  final DateTime? createdAt;
+
+  factory ChatMessage.fromJson(Map<String, dynamic> json) {
+    final idValue = json['id'];
+    final senderValue = json['sender_id'];
+    final receiverValue = json['receiver_id'];
+    final bodyValue = json['body'];
+
+    if (idValue is! num || senderValue is! num || receiverValue is! num) {
+      throw const FormatException('Message invalide');
+    }
+
+    if (bodyValue is! String) {
+      throw const FormatException('Message invalide');
+    }
+
+    final createdRaw = json['created_at'];
+    DateTime? createdAt;
+    if (createdRaw is String && createdRaw.isNotEmpty) {
+      createdAt = DateTime.tryParse(createdRaw);
+    }
+
+    return ChatMessage(
+      id: idValue.toInt(),
+      senderId: senderValue.toInt(),
+      receiverId: receiverValue.toInt(),
+      body: bodyValue,
+      createdAt: createdAt,
+    );
+  }
+}
+
 class UsersScreen extends StatefulWidget {
   const UsersScreen({super.key, required this.session});
 
@@ -431,7 +477,7 @@ class _UsersScreenState extends State<UsersScreen> {
   }
 }
 
-class ChatScreen extends StatelessWidget {
+class ChatScreen extends StatefulWidget {
   const ChatScreen({
     super.key,
     required this.session,
@@ -442,14 +488,332 @@ class ChatScreen extends StatelessWidget {
   final UserSummary peer;
 
   @override
+  State<ChatScreen> createState() => _ChatScreenState();
+}
+
+class _ChatScreenState extends State<ChatScreen> {
+  final _messageController = TextEditingController();
+  final _scrollController = ScrollController();
+  final List<ChatMessage> _messages = [];
+  Timer? _pollTimer;
+  bool _isLoading = true;
+  bool _isSending = false;
+  bool _isFetching = false;
+  int _lastMessageId = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadInitial();
+    _pollTimer = Timer.periodic(
+      const Duration(seconds: 3),
+      (_) => _fetchMessages(sinceId: _lastMessageId),
+    );
+  }
+
+  @override
+  void dispose() {
+    _pollTimer?.cancel();
+    _messageController.dispose();
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _showMessage(String message) {
+    if (!mounted) {
+      return;
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
+  }
+
+  Future<void> _loadInitial() async {
+    setState(() {
+      _isLoading = true;
+    });
+
+    await _fetchMessages(sinceId: 0, replace: true);
+
+    if (mounted) {
+      setState(() {
+        _isLoading = false;
+      });
+      _scrollToBottom();
+    }
+  }
+
+  Future<void> _fetchMessages({required int sinceId, bool replace = false}) async {
+    if (_isFetching) {
+      return;
+    }
+
+    _isFetching = true;
+    try {
+      final uri = Uri.parse('$apiBaseUrl/messages').replace(queryParameters: {
+        'user_id': widget.session.id.toString(),
+        'with_id': widget.peer.id.toString(),
+        'since_id': sinceId.toString(),
+      });
+
+      final response = await http.get(uri).timeout(const Duration(seconds: 8));
+      final payload = jsonDecode(response.body);
+
+      if (payload is! Map<String, dynamic>) {
+        throw const FormatException('Reponse invalide');
+      }
+
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        throw Exception(payload['message']?.toString() ?? 'Erreur serveur');
+      }
+
+      if (payload['status'] != 'ok') {
+        throw Exception(payload['message']?.toString() ?? 'Erreur serveur');
+      }
+
+      final messagesRaw = payload['messages'];
+      if (messagesRaw is! List) {
+        throw const FormatException('Messages invalides');
+      }
+
+      final nextMessages = <ChatMessage>[];
+      for (final item in messagesRaw) {
+        if (item is! Map<String, dynamic>) {
+          continue;
+        }
+        nextMessages.add(ChatMessage.fromJson(item));
+      }
+
+      if (replace) {
+        _messages
+          ..clear()
+          ..addAll(nextMessages);
+      } else {
+        _messages.addAll(nextMessages);
+      }
+
+      for (final message in nextMessages) {
+        if (message.id > _lastMessageId) {
+          _lastMessageId = message.id;
+        }
+      }
+
+      if (mounted) {
+        setState(() {});
+      }
+    } catch (error) {
+      if (replace) {
+        _showMessage('Impossible de charger les messages');
+      }
+    } finally {
+      _isFetching = false;
+    }
+  }
+
+  Future<void> _sendMessage() async {
+    final body = _messageController.text.trim();
+    if (body.isEmpty || _isSending) {
+      return;
+    }
+
+    FocusScope.of(context).unfocus();
+    setState(() {
+      _isSending = true;
+    });
+
+    try {
+      final response = await http
+          .post(
+            Uri.parse('$apiBaseUrl/messages'),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({
+              'sender_id': widget.session.id,
+              'receiver_id': widget.peer.id,
+              'body': body,
+            }),
+          )
+          .timeout(const Duration(seconds: 8));
+
+      final payload = jsonDecode(response.body);
+      if (payload is! Map<String, dynamic>) {
+        _showMessage('Reponse invalide du serveur');
+        return;
+      }
+
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        _showMessage(payload['message']?.toString() ?? 'Erreur serveur');
+        return;
+      }
+
+      if (payload['status'] != 'ok') {
+        _showMessage(payload['message']?.toString() ?? 'Envoi refuse');
+        return;
+      }
+
+      final messageRaw = payload['message'];
+      if (messageRaw is! Map<String, dynamic>) {
+        _showMessage('Message invalide');
+        return;
+      }
+
+      final message = ChatMessage.fromJson(messageRaw);
+      _messages.add(message);
+      if (message.id > _lastMessageId) {
+        _lastMessageId = message.id;
+      }
+
+      _messageController.clear();
+      if (mounted) {
+        setState(() {});
+      }
+      _scrollToBottom();
+    } catch (error) {
+      _showMessage('Impossible d\'envoyer le message');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSending = false;
+        });
+      }
+    }
+  }
+
+  void _scrollToBottom() {
+    if (!_scrollController.hasClients) {
+      return;
+    }
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!_scrollController.hasClients) {
+        return;
+      }
+      _scrollController.animateTo(
+        _scrollController.position.maxScrollExtent,
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeOut,
+      );
+    });
+  }
+
+  Widget _buildMessageBubble(ChatMessage message) {
+    final isMe = message.senderId == widget.session.id;
+    final colorScheme = Theme.of(context).colorScheme;
+    final bubbleColor = isMe
+        ? colorScheme.primaryContainer
+        : colorScheme.surfaceVariant;
+    final textColor = isMe
+        ? colorScheme.onPrimaryContainer
+        : colorScheme.onSurfaceVariant;
+
+    final createdAt = message.createdAt;
+    final timeLabel = createdAt == null
+        ? null
+        : '${createdAt.hour.toString().padLeft(2, '0')}:${createdAt.minute.toString().padLeft(2, '0')}';
+
+    return Align(
+      alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 280),
+        child: Container(
+          margin: const EdgeInsets.symmetric(vertical: 4),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          decoration: BoxDecoration(
+            color: bubbleColor,
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Column(
+            crossAxisAlignment:
+                isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+            children: [
+              Text(
+                message.body,
+                style: TextStyle(color: textColor),
+              ),
+              if (timeLabel != null) ...[
+                const SizedBox(height: 4),
+                Text(
+                  timeLabel,
+                  style: TextStyle(
+                    color: textColor.withOpacity(0.7),
+                    fontSize: 11,
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(peer.username),
+        title: Text(widget.peer.username),
+        actions: [
+          IconButton(
+            tooltip: 'Rafraichir',
+            onPressed: _loadInitial,
+            icon: const Icon(Icons.refresh),
+          ),
+        ],
       ),
-      body: const Padding(
-        padding: EdgeInsets.all(24),
-        child: Text('Etape suivante: messages.'),
+      body: Column(
+        children: [
+          Expanded(
+            child: _isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : _messages.isEmpty
+                    ? const Center(
+                        child: Text('Aucun message pour l\'instant.'),
+                      )
+                    : ListView.builder(
+                        controller: _scrollController,
+                        padding: const EdgeInsets.all(16),
+                        itemCount: _messages.length,
+                        itemBuilder: (context, index) {
+                          final message = _messages[index];
+                          return _buildMessageBubble(message);
+                        },
+                      ),
+          ),
+          const Divider(height: 1),
+          SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _messageController,
+                      textInputAction: TextInputAction.send,
+                      onSubmitted: (_) => _sendMessage(),
+                      minLines: 1,
+                      maxLines: 3,
+                      decoration: const InputDecoration(
+                        hintText: 'Ecrire un message...',
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  IconButton(
+                    onPressed: _isSending ? null : _sendMessage,
+                    icon: _isSending
+                        ? const SizedBox(
+                            height: 18,
+                            width: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.send),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
