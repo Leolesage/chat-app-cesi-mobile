@@ -4,7 +4,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 
-const String apiBaseUrl = 'http://10.0.2.2:8080';
+const String defaultApiBaseUrl = 'http://10.0.2.2:8080';
 
 void main() {
   runApp(const ChatApp());
@@ -36,13 +36,34 @@ class LoginScreen extends StatefulWidget {
 class _LoginScreenState extends State<LoginScreen> {
   final _usernameController = TextEditingController();
   final _passwordController = TextEditingController();
+  final _apiController = TextEditingController(text: defaultApiBaseUrl);
   bool _isLoading = false;
+  bool _showServerConfig = false;
 
   @override
   void dispose() {
     _usernameController.dispose();
     _passwordController.dispose();
+    _apiController.dispose();
     super.dispose();
+  }
+
+  String _normalizeApiBaseUrl(String value) {
+    var trimmed = value.trim();
+    if (trimmed.isEmpty) {
+      return defaultApiBaseUrl;
+    }
+
+    if (!trimmed.startsWith('http://') &&
+        !trimmed.startsWith('https://')) {
+      trimmed = 'http://$trimmed';
+    }
+
+    if (trimmed.endsWith('/')) {
+      trimmed = trimmed.substring(0, trimmed.length - 1);
+    }
+
+    return trimmed;
   }
 
   void _showMessage(String message) {
@@ -54,6 +75,7 @@ class _LoginScreenState extends State<LoginScreen> {
   Future<void> _submit() async {
     final username = _usernameController.text.trim();
     final password = _passwordController.text;
+    final baseUrl = _normalizeApiBaseUrl(_apiController.text);
 
     if (username.isEmpty || password.isEmpty) {
       _showMessage('Username et mot de passe obligatoires');
@@ -72,7 +94,7 @@ class _LoginScreenState extends State<LoginScreen> {
     try {
       final response = await http
           .post(
-            Uri.parse('$apiBaseUrl/auth'),
+            Uri.parse('$baseUrl/auth'),
             headers: {'Content-Type': 'application/json'},
             body: jsonEncode({
               'username': username,
@@ -114,6 +136,7 @@ class _LoginScreenState extends State<LoginScreen> {
         id: idValue.toInt(),
         username: usernameValue,
         created: payload['created'] == true,
+        apiBaseUrl: baseUrl,
       );
 
       if (!mounted) {
@@ -174,6 +197,36 @@ class _LoginScreenState extends State<LoginScreen> {
                   border: OutlineInputBorder(),
                 ),
               ),
+              const SizedBox(height: 8),
+              TextButton(
+                onPressed: () {
+                  setState(() {
+                    _showServerConfig = !_showServerConfig;
+                  });
+                },
+                child: Text(
+                  _showServerConfig
+                      ? 'Masquer le serveur'
+                      : 'Configurer le serveur',
+                ),
+              ),
+              if (_showServerConfig) ...[
+                TextField(
+                  controller: _apiController,
+                  keyboardType: TextInputType.url,
+                  decoration: const InputDecoration(
+                    labelText: 'Serveur API',
+                    hintText: 'http://192.168.1.50:8080',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Si l\'API tourne sur un autre PC, mets son IP locale ici.',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+                const SizedBox(height: 8),
+              ],
               const SizedBox(height: 24),
               ElevatedButton(
                 onPressed: _isLoading ? null : _submit,
@@ -203,11 +256,13 @@ class UserSession {
     required this.id,
     required this.username,
     required this.created,
+    required this.apiBaseUrl,
   });
 
   final int id;
   final String username;
   final bool created;
+  final String apiBaseUrl;
 }
 
 class UserSummary {
@@ -309,7 +364,7 @@ class _UsersScreenState extends State<UsersScreen> {
   Future<List<UserSummary>> _fetchUsers() async {
     try {
       final response = await http
-          .get(Uri.parse('$apiBaseUrl/users'))
+          .get(Uri.parse('${widget.session.apiBaseUrl}/users'))
           .timeout(const Duration(seconds: 8));
 
       final payload = jsonDecode(response.body);
@@ -551,7 +606,8 @@ class _ChatScreenState extends State<ChatScreen> {
 
     _isFetching = true;
     try {
-      final uri = Uri.parse('$apiBaseUrl/messages').replace(queryParameters: {
+      final uri = Uri.parse('${widget.session.apiBaseUrl}/messages')
+          .replace(queryParameters: {
         'user_id': widget.session.id.toString(),
         'with_id': widget.peer.id.toString(),
         'since_id': sinceId.toString(),
@@ -625,7 +681,7 @@ class _ChatScreenState extends State<ChatScreen> {
     try {
       final response = await http
           .post(
-            Uri.parse('$apiBaseUrl/messages'),
+            Uri.parse('${widget.session.apiBaseUrl}/messages'),
             headers: {'Content-Type': 'application/json'},
             body: jsonEncode({
               'sender_id': widget.session.id,
