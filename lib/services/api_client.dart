@@ -88,6 +88,18 @@ class ApiClient {
     return users;
   }
 
+  Future<void> updatePresence({required int userId}) async {
+    final response = await _client
+        .post(
+          _uri('/presence'),
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode({'user_id': userId}),
+        )
+        .timeout(AppConfig.requestTimeout);
+
+    _decodePayload(response);
+  }
+
   Future<List<ChatMessage>> fetchMessages({
     required int userId,
     required int peerId,

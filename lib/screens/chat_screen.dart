@@ -35,10 +35,15 @@ class _ChatScreenState extends State<ChatScreen> {
   bool _isSending = false;
   bool _isFetching = false;
   int _lastMessageId = 0;
+  bool _peerOnline = false;
+  DateTime? _peerLastSeen;
+  DateTime? _lastPeerRefresh;
 
   @override
   void initState() {
     super.initState();
+    _peerOnline = widget.peer.isOnline;
+    _peerLastSeen = widget.peer.lastSeenAt;
     _loadInitial();
     _pollTimer = Timer.periodic(
       AppConfig.pollInterval,
@@ -113,6 +118,8 @@ class _ChatScreenState extends State<ChatScreen> {
       if (nextMessages.isNotEmpty) {
         _scrollToBottom();
       }
+
+      await _refreshPeerStatusIfNeeded();
     } on ApiException catch (_) {
       if (replace) {
         _showMessage('Impossible de charger les messages');
@@ -123,6 +130,36 @@ class _ChatScreenState extends State<ChatScreen> {
       }
     } finally {
       _isFetching = false;
+    }
+  }
+
+  Future<void> _refreshPeerStatusIfNeeded() async {
+    final now = DateTime.now();
+    if (_lastPeerRefresh != null &&
+        now.difference(_lastPeerRefresh!) < AppConfig.usersRefreshInterval) {
+      return;
+    }
+    _lastPeerRefresh = now;
+
+    try {
+      final users = await widget.apiClient.fetchUsers(
+        excludeUserId: widget.session.id,
+      );
+      final peer = users.firstWhere(
+        (user) => user.id == widget.peer.id,
+        orElse: () => widget.peer,
+      );
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _peerOnline = peer.isOnline;
+        _peerLastSeen = peer.lastSeenAt;
+      });
+    } catch (_) {
+      // ignore
     }
   }
 
@@ -201,9 +238,28 @@ class _ChatScreenState extends State<ChatScreen> {
     );
   }
 
+  String _formatLastSeen(DateTime? lastSeenAt) {
+    if (lastSeenAt == null) {
+      return 'Hors ligne';
+    }
+
+    final diff = DateTime.now().difference(lastSeenAt);
+    if (diff.inSeconds < 60) {
+      return 'Vu a l\'instant';
+    }
+    if (diff.inMinutes < 60) {
+      return 'Vu il y a ${diff.inMinutes} min';
+    }
+    if (diff.inHours < 24) {
+      return 'Vu il y a ${diff.inHours} h';
+    }
+    return 'Vu il y a ${diff.inDays} j';
+  }
+
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+    final statusText = _peerOnline ? 'En ligne' : _formatLastSeen(_peerLastSeen);
 
     return Scaffold(
       appBar: AppBar(
@@ -213,6 +269,7 @@ class _ChatScreenState extends State<ChatScreen> {
             UserAvatar(
               label: widget.peer.username,
               size: 40,
+              isOnline: _peerOnline,
             ),
             const SizedBox(width: 12),
             Column(
@@ -220,7 +277,7 @@ class _ChatScreenState extends State<ChatScreen> {
               children: [
                 Text(widget.peer.username),
                 Text(
-                  'En ligne',
+                  statusText,
                   style: Theme.of(context).textTheme.bodySmall,
                 ),
               ],

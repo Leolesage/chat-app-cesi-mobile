@@ -1,5 +1,8 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
+import '../config/app_config.dart';
 import '../models/user.dart';
 import '../services/api_client.dart';
 import '../widgets/app_background.dart';
@@ -21,23 +24,47 @@ class UsersScreen extends StatefulWidget {
   State<UsersScreen> createState() => _UsersScreenState();
 }
 
-class _UsersScreenState extends State<UsersScreen> {
+class _UsersScreenState extends State<UsersScreen>
+    with WidgetsBindingObserver {
   final _searchController = TextEditingController();
-  late Future<List<UserSummary>> _usersFuture;
+  List<UserSummary> _users = [];
   String _query = '';
+  String? _errorMessage;
+  bool _isLoading = true;
+  Timer? _presenceTimer;
+  Timer? _refreshTimer;
 
   @override
   void initState() {
     super.initState();
-    _usersFuture = _fetchUsers();
+    WidgetsBinding.instance.addObserver(this);
     _searchController.addListener(_handleSearchChange);
+    _loadUsers(showLoading: true);
+    _startPresence();
+    _startAutoRefresh();
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _searchController.removeListener(_handleSearchChange);
     _searchController.dispose();
+    _presenceTimer?.cancel();
+    _refreshTimer?.cancel();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _startPresence();
+      _startAutoRefresh();
+    } else if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.inactive ||
+        state == AppLifecycleState.detached) {
+      _presenceTimer?.cancel();
+      _refreshTimer?.cancel();
+    }
   }
 
   void _handleSearchChange() {
@@ -56,25 +83,74 @@ class _UsersScreenState extends State<UsersScreen> {
     );
   }
 
-  Future<List<UserSummary>> _fetchUsers() async {
+  void _startPresence() {
+    _presenceTimer?.cancel();
+    _sendPresence();
+    _presenceTimer = Timer.periodic(
+      AppConfig.presenceInterval,
+      (_) => _sendPresence(),
+    );
+  }
+
+  void _startAutoRefresh() {
+    _refreshTimer?.cancel();
+    _refreshTimer = Timer.periodic(
+      AppConfig.usersRefreshInterval,
+      (_) => _loadUsers(),
+    );
+  }
+
+  Future<void> _sendPresence() async {
     try {
-      return await widget.apiClient.fetchUsers(
+      await widget.apiClient.updatePresence(userId: widget.session.id);
+    } catch (_) {
+      // silent
+    }
+  }
+
+  Future<void> _loadUsers({bool showLoading = false}) async {
+    if (showLoading) {
+      setState(() {
+        _isLoading = true;
+        _errorMessage = null;
+      });
+    }
+
+    try {
+      final users = await widget.apiClient.fetchUsers(
         excludeUserId: widget.session.id,
       );
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _users = users;
+        _errorMessage = null;
+        _isLoading = false;
+      });
     } on ApiException catch (_) {
-      _showMessage('Impossible de charger les utilisateurs');
-      rethrow;
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _errorMessage = 'Impossible de charger les utilisateurs';
+        _isLoading = false;
+      });
     } catch (_) {
-      _showMessage('Impossible de contacter l\'API');
-      rethrow;
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _errorMessage = 'Impossible de contacter l\'API';
+        _isLoading = false;
+      });
     }
   }
 
   Future<void> _refresh() async {
-    setState(() {
-      _usersFuture = _fetchUsers();
-    });
-    await _usersFuture;
+    await _loadUsers();
   }
 
   void _openChat(UserSummary user) {
@@ -97,6 +173,24 @@ class _UsersScreenState extends State<UsersScreen> {
     return users
         .where((user) => user.username.toLowerCase().contains(_query))
         .toList();
+  }
+
+  String _formatLastSeen(DateTime? lastSeenAt) {
+    if (lastSeenAt == null) {
+      return 'Hors ligne';
+    }
+
+    final diff = DateTime.now().difference(lastSeenAt);
+    if (diff.inSeconds < 60) {
+      return 'Vu a l\'instant';
+    }
+    if (diff.inMinutes < 60) {
+      return 'Vu il y a ${diff.inMinutes} min';
+    }
+    if (diff.inHours < 24) {
+      return 'Vu il y a ${diff.inHours} h';
+    }
+    return 'Vu il y a ${diff.inDays} j';
   }
 
   void _showAddUserSheet() {
@@ -219,92 +313,82 @@ class _UsersScreenState extends State<UsersScreen> {
                 ),
                 const SizedBox(height: 16),
                 Expanded(
-                  child: FutureBuilder<List<UserSummary>>(
-                    future: _usersFuture,
-                    builder: (context, snapshot) {
-                      if (snapshot.connectionState ==
-                          ConnectionState.waiting) {
-                        return const Center(
-                          child: CircularProgressIndicator(),
-                        );
-                      }
-
-                      if (snapshot.hasError) {
-                        return Center(
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const Text('Erreur de chargement.'),
-                              const SizedBox(height: 12),
-                              ElevatedButton(
-                                onPressed: _refresh,
-                                child: const Text('Reessayer'),
+                  child: _isLoading
+                      ? const Center(child: CircularProgressIndicator())
+                      : _errorMessage != null
+                          ? Center(
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(_errorMessage!),
+                                  const SizedBox(height: 12),
+                                  ElevatedButton(
+                                    onPressed: _refresh,
+                                    child: const Text('Reessayer'),
+                                  ),
+                                ],
                               ),
-                            ],
-                          ),
-                        );
-                      }
-
-                      final users = _filterUsers(
-                        snapshot.data ?? <UserSummary>[],
-                      );
-
-                      if (users.isEmpty) {
-                        return Center(
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const Icon(Icons.people_outline, size: 36),
-                              const SizedBox(height: 12),
-                              const Text(
-                                'Aucun autre utilisateur pour l\'instant.',
-                              ),
-                              const SizedBox(height: 12),
-                              TextButton(
-                                onPressed: _refresh,
-                                child: const Text('Rafraichir'),
-                              ),
-                            ],
-                          ),
-                        );
-                      }
-
-                      return RefreshIndicator(
-                        onRefresh: _refresh,
-                        child: ListView.separated(
-                          physics: const AlwaysScrollableScrollPhysics(),
-                          itemCount: users.length,
-                          separatorBuilder: (_, __) =>
-                              const SizedBox(height: 12),
-                          itemBuilder: (context, index) {
-                            final user = users[index];
-
-                            return Card(
-                              child: ListTile(
-                                contentPadding: const EdgeInsets.symmetric(
-                                  horizontal: 16,
-                                  vertical: 6,
-                                ),
-                                leading: UserAvatar(
-                                  label: user.username,
-                                  isOnline: true,
-                                ),
-                                title: Text(user.username),
-                                subtitle: const Text('Disponible'),
-                                trailing: const Icon(Icons.chevron_right),
-                                onTap: () => _openChat(user),
-                              ),
-                            );
-                          },
-                        ),
-                      );
-                    },
-                  ),
+                            )
+                          : _buildUsersList(),
                 ),
               ],
             ),
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildUsersList() {
+    final users = _filterUsers(_users);
+
+    if (users.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.people_outline, size: 36),
+            const SizedBox(height: 12),
+            const Text('Aucun autre utilisateur pour l\'instant.'),
+            const SizedBox(height: 12),
+            TextButton(
+              onPressed: _refresh,
+              child: const Text('Rafraichir'),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return RefreshIndicator(
+      onRefresh: _refresh,
+      child: ListView.separated(
+        physics: const AlwaysScrollableScrollPhysics(),
+        itemCount: users.length,
+        separatorBuilder: (_, __) => const SizedBox(height: 12),
+        itemBuilder: (context, index) {
+          final user = users[index];
+          final statusText = user.isOnline
+              ? 'En ligne'
+              : _formatLastSeen(user.lastSeenAt);
+
+          return Card(
+            child: ListTile(
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 16,
+                vertical: 6,
+              ),
+              leading: UserAvatar(
+                label: user.username,
+                isOnline: user.isOnline,
+              ),
+              title: Text(user.username),
+              subtitle: Text(statusText),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => _openChat(user),
+            ),
+          );
+        },
       ),
     );
   }
@@ -431,7 +515,7 @@ class _AddUserSheetState extends State<_AddUserSheet> {
             else if (_filteredUsers.isEmpty)
               const Padding(
                 padding: EdgeInsets.all(24),
-                child: Text('Aucun utilisateur trouv�.'),
+                child: Text('Aucun utilisateur trouve.'),
               )
             else
               SizedBox(
@@ -443,8 +527,16 @@ class _AddUserSheetState extends State<_AddUserSheet> {
                     final user = _filteredUsers[index];
                     return ListTile(
                       contentPadding: EdgeInsets.zero,
-                      leading: UserAvatar(label: user.username),
+                      leading: UserAvatar(
+                        label: user.username,
+                        isOnline: user.isOnline,
+                      ),
                       title: Text(user.username),
+                      subtitle: Text(
+                        user.isOnline
+                            ? 'En ligne'
+                            : 'Hors ligne',
+                      ),
                       trailing: IconButton(
                         icon: const Icon(Icons.chat_bubble_outline),
                         onPressed: () => widget.onOpenChat(user),
