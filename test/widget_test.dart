@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:chat_app/main.dart';
+import 'package:chat_app/app.dart';
 
 void main() {
   testWidgets('Login screen shows required fields', (WidgetTester tester) async {
