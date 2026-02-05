@@ -38,6 +38,8 @@ class _ChatScreenState extends State<ChatScreen> {
   bool _peerOnline = false;
   DateTime? _peerLastSeen;
   DateTime? _lastPeerRefresh;
+  String? _errorMessage;
+  int _lastReadId = 0;
 
   @override
   void initState() {
@@ -72,6 +74,7 @@ class _ChatScreenState extends State<ChatScreen> {
   Future<void> _loadInitial() async {
     setState(() {
       _isLoading = true;
+      _errorMessage = null;
     });
 
     await _fetchMessages(sinceId: 0, replace: true);
@@ -111,6 +114,9 @@ class _ChatScreenState extends State<ChatScreen> {
         }
       }
 
+      await _markReadIfNeeded();
+      await _refreshReadStatus();
+
       if (mounted) {
         setState(() {});
       }
@@ -122,14 +128,87 @@ class _ChatScreenState extends State<ChatScreen> {
       await _refreshPeerStatusIfNeeded();
     } on ApiException catch (_) {
       if (replace) {
-        _showMessage('Impossible de charger les messages');
+        if (mounted) {
+          setState(() {
+            _errorMessage = 'Impossible de charger les messages';
+          });
+        }
       }
     } catch (_) {
       if (replace) {
-        _showMessage('Impossible de contacter l\'API');
+        if (mounted) {
+          setState(() {
+            _errorMessage = 'Impossible de contacter l\'API';
+          });
+        }
       }
     } finally {
       _isFetching = false;
+    }
+  }
+
+  Future<void> _markReadIfNeeded() async {
+    final unreadFromPeer = _messages
+        .where((message) =>
+            message.senderId == widget.peer.id && message.readAt == null)
+        .toList();
+
+    if (unreadFromPeer.isEmpty) {
+      return;
+    }
+
+    final upToId = unreadFromPeer
+        .map((message) => message.id)
+        .fold<int>(0, (maxId, id) => id > maxId ? id : maxId);
+
+    try {
+      await widget.apiClient.markMessagesRead(
+        userId: widget.session.id,
+        withId: widget.peer.id,
+        upToId: upToId,
+      );
+
+      final now = DateTime.now();
+      for (final message in _messages) {
+        if (message.senderId == widget.peer.id &&
+            message.readAt == null &&
+            message.id <= upToId) {
+          message.readAt = now;
+        }
+      }
+      if (mounted) {
+        setState(() {});
+      }
+    } catch (_) {
+      // ignore
+    }
+  }
+
+  Future<void> _refreshReadStatus() async {
+    try {
+      final lastReadId = await widget.apiClient.fetchLastReadId(
+        userId: widget.session.id,
+        withId: widget.peer.id,
+      );
+
+      if (lastReadId <= _lastReadId) {
+        return;
+      }
+      _lastReadId = lastReadId;
+
+      final now = DateTime.now();
+      for (final message in _messages) {
+        if (message.senderId == widget.session.id &&
+            message.readAt == null &&
+            message.id <= lastReadId) {
+          message.readAt = now;
+        }
+      }
+      if (mounted) {
+        setState(() {});
+      }
+    } catch (_) {
+      // ignore
     }
   }
 
@@ -142,8 +221,8 @@ class _ChatScreenState extends State<ChatScreen> {
     _lastPeerRefresh = now;
 
     try {
-      final users = await widget.apiClient.fetchUsers(
-        excludeUserId: widget.session.id,
+      final users = await widget.apiClient.fetchFriends(
+        userId: widget.session.id,
       );
       final peer = users.firstWhere(
         (user) => user.id == widget.peer.id,
@@ -188,7 +267,9 @@ class _ChatScreenState extends State<ChatScreen> {
 
       _messageController.clear();
       if (mounted) {
-        setState(() {});
+        setState(() {
+          _errorMessage = null;
+        });
       }
       _scrollToBottom();
     } on ApiException catch (error) {
@@ -233,6 +314,44 @@ class _ChatScreenState extends State<ChatScreen> {
           ),
           const SizedBox(height: 12),
           const Text('Aucun message pour l\'instant.'),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildErrorBanner(ColorScheme colorScheme) {
+    if (_errorMessage == null) {
+      return const SizedBox.shrink();
+    }
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: colorScheme.errorContainer,
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(
+            Icons.error_outline,
+            color: colorScheme.onErrorContainer,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              _errorMessage!,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: colorScheme.onErrorContainer,
+                    fontWeight: FontWeight.w600,
+                  ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          TextButton(
+            onPressed: _isFetching ? null : _loadInitial,
+            child: const Text('Reessayer'),
+          ),
         ],
       ),
     );
@@ -318,6 +437,7 @@ class _ChatScreenState extends State<ChatScreen> {
       body: AppBackground(
         child: Column(
           children: [
+            _buildErrorBanner(colorScheme),
             Expanded(
               child: _isLoading
                   ? const Center(child: CircularProgressIndicator())

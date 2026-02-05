@@ -27,6 +27,8 @@ class MessageBubble extends StatelessWidget {
         ? null
         : '${createdAt.hour.toString().padLeft(2, '0')}:${createdAt.minute.toString().padLeft(2, '0')}';
 
+    final isRead = message.readAt != null;
+
     return Align(
       alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
       child: ConstrainedBox(
@@ -77,9 +79,11 @@ class MessageBubble extends StatelessWidget {
                     if (isMe) ...[
                       const SizedBox(width: 6),
                       Icon(
-                        Icons.check,
+                        isRead ? Icons.done_all : Icons.check,
                         size: 14,
-                        color: textColor.withOpacity(0.6),
+                        color: isRead
+                            ? Theme.of(context).colorScheme.primary
+                            : textColor.withOpacity(0.6),
                       ),
                     ],
                   ],

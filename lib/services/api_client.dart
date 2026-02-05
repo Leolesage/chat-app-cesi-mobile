@@ -88,6 +88,132 @@ class ApiClient {
     return users;
   }
 
+  Future<List<UserSummary>> fetchFriends({required int userId}) async {
+    final response = await _client
+        .get(_uri('/friends', {'user_id': userId.toString()}))
+        .timeout(AppConfig.requestTimeout);
+
+    final payload = _decodePayload(response);
+    final usersRaw = payload['friends'];
+    if (usersRaw is! List) {
+      throw ApiException('Liste invalide');
+    }
+
+    final users = <UserSummary>[];
+    for (final item in usersRaw) {
+      if (item is! Map<String, dynamic>) {
+        continue;
+      }
+      users.add(UserSummary.fromJson(item));
+    }
+
+    return users;
+  }
+
+  Future<List<FriendRequest>> fetchFriendRequests({required int userId}) async {
+    final response = await _client
+        .get(_uri('/friends/requests', {'user_id': userId.toString()}))
+        .timeout(AppConfig.requestTimeout);
+
+    final payload = _decodePayload(response);
+    final requestsRaw = payload['requests'];
+    if (requestsRaw is! List) {
+      throw ApiException('Liste invalide');
+    }
+
+    final requests = <FriendRequest>[];
+    for (final item in requestsRaw) {
+      if (item is! Map<String, dynamic>) {
+        continue;
+      }
+      requests.add(FriendRequest.fromJson(item));
+    }
+
+    return requests;
+  }
+
+  Future<List<UserSummary>> discoverUsers({
+    required int userId,
+    String query = '',
+  }) async {
+    final response = await _client
+        .get(_uri('/users/discover', {
+          'user_id': userId.toString(),
+          'query': query,
+        }))
+        .timeout(AppConfig.requestTimeout);
+
+    final payload = _decodePayload(response);
+    final usersRaw = payload['users'];
+    if (usersRaw is! List) {
+      throw ApiException('Liste invalide');
+    }
+
+    final users = <UserSummary>[];
+    for (final item in usersRaw) {
+      if (item is! Map<String, dynamic>) {
+        continue;
+      }
+      users.add(UserSummary.fromJson(item));
+    }
+
+    return users;
+  }
+
+  Future<void> sendFriendRequest({
+    required int fromUserId,
+    required int toUserId,
+  }) async {
+    final response = await _client
+        .post(
+          _uri('/friends/request'),
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode({
+            'from_user_id': fromUserId,
+            'to_user_id': toUserId,
+          }),
+        )
+        .timeout(AppConfig.requestTimeout);
+
+    _decodePayload(response);
+  }
+
+  Future<void> acceptFriendRequest({
+    required int fromUserId,
+    required int toUserId,
+  }) async {
+    final response = await _client
+        .post(
+          _uri('/friends/accept'),
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode({
+            'from_user_id': fromUserId,
+            'to_user_id': toUserId,
+          }),
+        )
+        .timeout(AppConfig.requestTimeout);
+
+    _decodePayload(response);
+  }
+
+  Future<void> declineFriendRequest({
+    required int fromUserId,
+    required int toUserId,
+  }) async {
+    final response = await _client
+        .post(
+          _uri('/friends/decline'),
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode({
+            'from_user_id': fromUserId,
+            'to_user_id': toUserId,
+          }),
+        )
+        .timeout(AppConfig.requestTimeout);
+
+    _decodePayload(response);
+  }
+
   Future<void> updatePresence({required int userId}) async {
     final response = await _client
         .post(
@@ -156,6 +282,45 @@ class ApiClient {
     }
 
     return ChatMessage.fromJson(messageRaw);
+  }
+
+  Future<void> markMessagesRead({
+    required int userId,
+    required int withId,
+    int upToId = 0,
+  }) async {
+    final response = await _client
+        .post(
+          _uri('/messages/read'),
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode({
+            'user_id': userId,
+            'with_id': withId,
+            'up_to_id': upToId,
+          }),
+        )
+        .timeout(AppConfig.requestTimeout);
+
+    _decodePayload(response);
+  }
+
+  Future<int> fetchLastReadId({
+    required int userId,
+    required int withId,
+  }) async {
+    final response = await _client
+        .get(_uri('/messages/read', {
+          'user_id': userId.toString(),
+          'with_id': withId.toString(),
+        }))
+        .timeout(AppConfig.requestTimeout);
+
+    final payload = _decodePayload(response);
+    final value = payload['last_read_id'];
+    if (value is! num) {
+      return 0;
+    }
+    return value.toInt();
   }
 
   Map<String, dynamic> _decodePayload(http.Response response) {

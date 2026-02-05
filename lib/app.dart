@@ -8,19 +8,22 @@ class ChatApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const brand = Color(0xFF0C8A6A);
-    const surface = Color(0xFFF6F4EF);
-    const surfaceAlt = Color(0xFFE7F3EF);
-    const outline = Color(0xFFE3DED4);
+    const brand = Color(0xFF2D7BFF);
+    const surface = Color(0xFFF3F7FF);
+    const surfaceAlt = Color(0xFFE7F0FF);
+    const outline = Color(0xFFD6E2FF);
 
     final colorScheme = ColorScheme.fromSeed(
       seedColor: brand,
       brightness: Brightness.light,
       surface: surface,
       surfaceVariant: surfaceAlt,
+    ).copyWith(
+      primary: brand,
+      secondary: const Color(0xFF4CC9FF),
     );
 
-    final baseTextTheme = GoogleFonts.plusJakartaSansTextTheme();
+    final baseTextTheme = GoogleFonts.manropeTextTheme();
 
     return MaterialApp(
       title: 'CESI Chat',
@@ -28,17 +31,17 @@ class ChatApp extends StatelessWidget {
         colorScheme: colorScheme,
         scaffoldBackgroundColor: surface,
         textTheme: baseTextTheme.copyWith(
-          headlineLarge: GoogleFonts.poppins(
+          headlineLarge: GoogleFonts.sora(
             fontSize: 34,
             fontWeight: FontWeight.w700,
             color: colorScheme.onSurface,
           ),
-          headlineSmall: GoogleFonts.poppins(
+          headlineSmall: GoogleFonts.sora(
             fontSize: 22,
             fontWeight: FontWeight.w600,
             color: colorScheme.onSurface,
           ),
-          titleLarge: GoogleFonts.poppins(
+          titleLarge: GoogleFonts.sora(
             fontSize: 20,
             fontWeight: FontWeight.w600,
             color: colorScheme.onSurface,
@@ -54,7 +57,7 @@ class ChatApp extends StatelessWidget {
           elevation: 0,
           scrolledUnderElevation: 0,
           iconTheme: IconThemeData(color: colorScheme.onSurface),
-          titleTextStyle: GoogleFonts.poppins(
+          titleTextStyle: GoogleFonts.sora(
             fontSize: 20,
             fontWeight: FontWeight.w600,
             color: colorScheme.onSurface,
@@ -70,7 +73,7 @@ class ChatApp extends StatelessWidget {
         ),
         inputDecorationTheme: InputDecorationTheme(
           filled: true,
-          fillColor: Colors.white,
+          fillColor: const Color(0xFFFFFFFF),
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(18),
             borderSide: const BorderSide(color: outline),

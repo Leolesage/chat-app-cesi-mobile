@@ -27,10 +27,16 @@ class UsersScreen extends StatefulWidget {
 class _UsersScreenState extends State<UsersScreen>
     with WidgetsBindingObserver {
   final _searchController = TextEditingController();
-  List<UserSummary> _users = [];
+  List<UserSummary> _friends = [];
+  List<UserSummary> _discoverUsers = [];
+  List<FriendRequest> _requests = [];
   String _query = '';
-  String? _errorMessage;
-  bool _isLoading = true;
+  String? _friendsError;
+  String? _requestsError;
+  String? _discoverError;
+  bool _isLoadingFriends = true;
+  bool _isLoadingRequests = false;
+  bool _isLoadingDiscover = false;
   Timer? _presenceTimer;
   Timer? _refreshTimer;
   int _activeTabIndex = 0;
@@ -40,7 +46,9 @@ class _UsersScreenState extends State<UsersScreen>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _searchController.addListener(_handleSearchChange);
-    _loadUsers(showLoading: true);
+    _loadFriends(showLoading: true);
+    _loadRequests(showLoading: true);
+    _loadDiscover(showLoading: true);
     _startPresence();
     _startAutoRefresh();
   }
@@ -69,9 +77,14 @@ class _UsersScreenState extends State<UsersScreen>
   }
 
   void _handleSearchChange() {
+    final value = _searchController.text.trim().toLowerCase();
     setState(() {
-      _query = _searchController.text.trim().toLowerCase();
+      _query = value;
     });
+
+    if (_activeTabIndex == 2) {
+      _loadDiscover(showLoading: false);
+    }
   }
 
   void _showMessage(String message) {
@@ -97,7 +110,7 @@ class _UsersScreenState extends State<UsersScreen>
     _refreshTimer?.cancel();
     _refreshTimer = Timer.periodic(
       AppConfig.usersRefreshInterval,
-      (_) => _loadUsers(),
+      (_) => _loadFriends(),
     );
   }
 
@@ -109,17 +122,17 @@ class _UsersScreenState extends State<UsersScreen>
     }
   }
 
-  Future<void> _loadUsers({bool showLoading = false}) async {
+  Future<void> _loadFriends({bool showLoading = false}) async {
     if (showLoading) {
       setState(() {
-        _isLoading = true;
-        _errorMessage = null;
+        _isLoadingFriends = true;
+        _friendsError = null;
       });
     }
 
     try {
-      final users = await widget.apiClient.fetchUsers(
-        excludeUserId: widget.session.id,
+      final users = await widget.apiClient.fetchFriends(
+        userId: widget.session.id,
       );
 
       if (!mounted) {
@@ -127,31 +140,122 @@ class _UsersScreenState extends State<UsersScreen>
       }
 
       setState(() {
-        _users = users;
-        _errorMessage = null;
-        _isLoading = false;
+        _friends = users;
+        _friendsError = null;
+        _isLoadingFriends = false;
       });
     } on ApiException catch (_) {
       if (!mounted) {
         return;
       }
       setState(() {
-        _errorMessage = 'Impossible de charger les utilisateurs';
-        _isLoading = false;
+        _friendsError = 'Impossible de charger les amis';
+        _isLoadingFriends = false;
       });
     } catch (_) {
       if (!mounted) {
         return;
       }
       setState(() {
-        _errorMessage = 'Impossible de contacter l\'API';
-        _isLoading = false;
+        _friendsError = 'Impossible de contacter l\'API';
+        _isLoadingFriends = false;
+      });
+    }
+  }
+
+  Future<void> _loadRequests({bool showLoading = false}) async {
+    if (showLoading) {
+      setState(() {
+        _isLoadingRequests = true;
+        _requestsError = null;
+      });
+    }
+
+    try {
+      final requests = await widget.apiClient.fetchFriendRequests(
+        userId: widget.session.id,
+      );
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _requests = requests;
+        _requestsError = null;
+        _isLoadingRequests = false;
+      });
+    } on ApiException catch (_) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _requestsError = 'Impossible de charger les invitations';
+        _isLoadingRequests = false;
+      });
+    } catch (_) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _requestsError = 'Impossible de contacter l\'API';
+        _isLoadingRequests = false;
+      });
+    }
+  }
+
+  Future<void> _loadDiscover({bool showLoading = false}) async {
+    if (showLoading) {
+      setState(() {
+        _isLoadingDiscover = true;
+        _discoverError = null;
+      });
+    }
+
+    try {
+      final users = await widget.apiClient.discoverUsers(
+        userId: widget.session.id,
+        query: _query,
+      );
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _discoverUsers = users;
+        _discoverError = null;
+        _isLoadingDiscover = false;
+      });
+    } on ApiException catch (_) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _discoverError = 'Impossible de charger les suggestions';
+        _isLoadingDiscover = false;
+      });
+    } catch (_) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _discoverError = 'Impossible de contacter l\'API';
+        _isLoadingDiscover = false;
       });
     }
   }
 
   Future<void> _refresh() async {
-    await _loadUsers();
+    if (_activeTabIndex == 0) {
+      await _loadFriends(showLoading: true);
+      return;
+    }
+    if (_activeTabIndex == 1) {
+      await _loadRequests(showLoading: true);
+      return;
+    }
+    await _loadDiscover(showLoading: true);
   }
 
   void _openChat(UserSummary user) {
@@ -173,6 +277,17 @@ class _UsersScreenState extends State<UsersScreen>
 
     return users
         .where((user) => user.username.toLowerCase().contains(_query))
+        .toList();
+  }
+
+  List<FriendRequest> _filterRequests(List<FriendRequest> requests) {
+    if (_query.isEmpty) {
+      return requests;
+    }
+
+    return requests
+        .where((request) =>
+            request.fromUser.username.toLowerCase().contains(_query))
         .toList();
   }
 
@@ -224,23 +339,77 @@ class _UsersScreenState extends State<UsersScreen>
     return 'Vu il y a ${diff.inDays} j';
   }
 
-  void _showAddUserSheet() {
-    showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) {
-        return _AddUserSheet(
-          sessionId: widget.session.id,
-          sessionUsername: widget.session.username,
-          apiClient: widget.apiClient,
-          onOpenChat: (user) {
-            Navigator.of(context).pop();
-            _openChat(user);
-          },
-        );
-      },
-    );
+  void _setActiveTab(int index) {
+    setState(() {
+      _activeTabIndex = index;
+    });
+    if (index == 1 && _requests.isEmpty) {
+      _loadRequests(showLoading: true);
+    }
+    if (index == 2 && _discoverUsers.isEmpty) {
+      _loadDiscover(showLoading: true);
+    }
+  }
+
+  Future<void> _sendRequest(UserSummary user) async {
+    try {
+      await widget.apiClient.sendFriendRequest(
+        fromUserId: widget.session.id,
+        toUserId: user.id,
+      );
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _discoverUsers.removeWhere((item) => item.id == user.id);
+      });
+      _showMessage('Invitation envoyee');
+    } on ApiException catch (error) {
+      _showMessage(error.message);
+    } catch (_) {
+      _showMessage('Impossible d\'envoyer l\'invitation');
+    }
+  }
+
+  Future<void> _acceptRequest(FriendRequest request) async {
+    try {
+      await widget.apiClient.acceptFriendRequest(
+        fromUserId: request.fromUser.id,
+        toUserId: widget.session.id,
+      );
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _requests.removeWhere((item) => item.id == request.id);
+      });
+      await _loadFriends(showLoading: true);
+      _showMessage('Ami ajoute');
+    } on ApiException catch (error) {
+      _showMessage(error.message);
+    } catch (_) {
+      _showMessage('Impossible d\'accepter l\'invitation');
+    }
+  }
+
+  Future<void> _declineRequest(FriendRequest request) async {
+    try {
+      await widget.apiClient.declineFriendRequest(
+        fromUserId: request.fromUser.id,
+        toUserId: widget.session.id,
+      );
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _requests.removeWhere((item) => item.id == request.id);
+      });
+      _showMessage('Invitation refusee');
+    } on ApiException catch (error) {
+      _showMessage(error.message);
+    } catch (_) {
+      _showMessage('Impossible de refuser l\'invitation');
+    }
   }
 
   @override
@@ -248,18 +417,13 @@ class _UsersScreenState extends State<UsersScreen>
     final statusText = widget.session.created
         ? 'Compte cree avec succes.'
         : 'Connexion reussie.';
-    final filteredUsers = _filterUsers(_users);
-    final topFriends = _topFriends(filteredUsers);
+    final filteredFriends = _filterUsers(_friends);
+    final topFriends = _topFriends(filteredFriends);
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('Chats'),
         actions: [
-          IconButton(
-            tooltip: 'Ajouter un contact',
-            onPressed: _showAddUserSheet,
-            icon: const Icon(Icons.person_add_alt_1_rounded),
-          ),
           IconButton(
             tooltip: 'Rafraichir',
             onPressed: _refresh,
@@ -295,9 +459,8 @@ class _UsersScreenState extends State<UsersScreen>
                             children: [
                               Text(
                                 widget.session.username,
-                                style: Theme.of(context)
-                                    .textTheme
-                                    .headlineSmall,
+                                style:
+                                    Theme.of(context).textTheme.headlineSmall,
                               ),
                               const SizedBox(height: 4),
                               Text('ID utilisateur: ${widget.session.id}'),
@@ -331,11 +494,12 @@ class _UsersScreenState extends State<UsersScreen>
                         style: Theme.of(context).textTheme.titleLarge,
                       ),
                     ),
-                    TextButton.icon(
-                      onPressed: _showAddUserSheet,
-                      icon: const Icon(Icons.person_add_alt_1_rounded, size: 18),
-                      label: const Text('Ajouter'),
-                    ),
+                    if (_activeTabIndex == 2)
+                      TextButton.icon(
+                        onPressed: _refresh,
+                        icon: const Icon(Icons.refresh_rounded, size: 18),
+                        label: const Text('Rafraichir'),
+                      ),
                   ],
                 ),
                 const SizedBox(height: 12),
@@ -344,41 +508,41 @@ class _UsersScreenState extends State<UsersScreen>
                     ChoiceChip(
                       label: const Text('Chats'),
                       selected: _activeTabIndex == 0,
-                      onSelected: (_) {
-                        setState(() {
-                          _activeTabIndex = 0;
-                        });
-                      },
+                      onSelected: (_) => _setActiveTab(0),
                     ),
                     const SizedBox(width: 10),
                     ChoiceChip(
-                      label: const Text('Amis proches'),
+                      label: const Text('Invitations'),
                       selected: _activeTabIndex == 1,
-                      onSelected: (_) {
-                        setState(() {
-                          _activeTabIndex = 1;
-                        });
-                      },
+                      onSelected: (_) => _setActiveTab(1),
+                    ),
+                    const SizedBox(width: 10),
+                    ChoiceChip(
+                      label: const Text('Trouver'),
+                      selected: _activeTabIndex == 2,
+                      onSelected: (_) => _setActiveTab(2),
                     ),
                   ],
                 ),
                 const SizedBox(height: 16),
                 TextField(
                   controller: _searchController,
-                  decoration: const InputDecoration(
-                    hintText: 'Rechercher un utilisateur',
-                    prefixIcon: Icon(Icons.search_rounded),
+                  decoration: InputDecoration(
+                    hintText: _activeTabIndex == 2
+                        ? 'Rechercher un utilisateur'
+                        : 'Rechercher dans les chats',
+                    prefixIcon: const Icon(Icons.search_rounded),
                   ),
                 ),
                 const SizedBox(height: 16),
-                if (_activeTabIndex == 1 && topFriends.isNotEmpty) ...[
+                if (_activeTabIndex == 0 && topFriends.isNotEmpty) ...[
                   Text(
                     'Amis de flamme',
                     style: Theme.of(context).textTheme.titleMedium,
                   ),
                   const SizedBox(height: 12),
                   SizedBox(
-                    height: 110,
+                    height: 126,
                     child: ListView.separated(
                       scrollDirection: Axis.horizontal,
                       itemCount: topFriends.length,
@@ -387,7 +551,7 @@ class _UsersScreenState extends State<UsersScreen>
                         final friend = topFriends[index];
                         final streak = _streakForUser(friend);
                         return Container(
-                          width: 120,
+                          width: 124,
                           padding: const EdgeInsets.all(12),
                           decoration: BoxDecoration(
                             color: Colors.white.withOpacity(0.96),
@@ -414,7 +578,13 @@ class _UsersScreenState extends State<UsersScreen>
                                 style: Theme.of(context).textTheme.bodyMedium,
                               ),
                               const SizedBox(height: 4),
-                              Text('Flamme $streak'),
+                              Text(
+                                'Flamme $streak',
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .labelSmall
+                                    ?.copyWith(fontWeight: FontWeight.w600),
+                              ),
                             ],
                           ),
                         );
@@ -424,23 +594,11 @@ class _UsersScreenState extends State<UsersScreen>
                   const SizedBox(height: 16),
                 ],
                 Expanded(
-                  child: _isLoading
-                      ? const Center(child: CircularProgressIndicator())
-                      : _errorMessage != null
-                          ? Center(
-                              child: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Text(_errorMessage!),
-                                  const SizedBox(height: 12),
-                                  ElevatedButton(
-                                    onPressed: _refresh,
-                                    child: const Text('Reessayer'),
-                                  ),
-                                ],
-                              ),
-                            )
-                          : _buildUsersList(),
+                  child: _activeTabIndex == 0
+                      ? _buildFriendsList(filteredFriends)
+                      : _activeTabIndex == 1
+                          ? _buildRequestsList(_filterRequests(_requests))
+                          : _buildDiscoverList(_discoverUsers),
                 ),
               ],
             ),
@@ -450,21 +608,39 @@ class _UsersScreenState extends State<UsersScreen>
     );
   }
 
-  Widget _buildUsersList() {
-    final users = _filterUsers(_users);
+  Widget _buildFriendsList(List<UserSummary> friends) {
+    if (_isLoadingFriends) {
+      return const Center(child: CircularProgressIndicator());
+    }
 
-    if (users.isEmpty) {
+    if (_friendsError != null) {
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(_friendsError!),
+            const SizedBox(height: 12),
+            ElevatedButton(
+              onPressed: _refresh,
+              child: const Text('Reessayer'),
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (friends.isEmpty) {
       return Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             const Icon(Icons.people_outline, size: 36),
             const SizedBox(height: 12),
-            const Text('Aucun autre utilisateur pour l\'instant.'),
+            const Text('Aucun ami pour l\'instant.'),
             const SizedBox(height: 12),
             TextButton(
-              onPressed: _refresh,
-              child: const Text('Rafraichir'),
+              onPressed: () => _setActiveTab(2),
+              child: const Text('Trouver des amis'),
             ),
           ],
         ),
@@ -475,10 +651,10 @@ class _UsersScreenState extends State<UsersScreen>
       onRefresh: _refresh,
       child: ListView.separated(
         physics: const AlwaysScrollableScrollPhysics(),
-        itemCount: users.length,
+        itemCount: friends.length,
         separatorBuilder: (_, __) => const SizedBox(height: 12),
         itemBuilder: (context, index) {
-          final user = users[index];
+          final user = friends[index];
           final statusText = user.isOnline
               ? 'En ligne'
               : _formatLastSeen(user.lastSeenAt);
@@ -536,184 +712,153 @@ class _UsersScreenState extends State<UsersScreen>
       ),
     );
   }
-}
 
-class _AddUserSheet extends StatefulWidget {
-  const _AddUserSheet({
-    required this.sessionId,
-    required this.sessionUsername,
-    required this.apiClient,
-    required this.onOpenChat,
-  });
-
-  final int sessionId;
-  final String sessionUsername;
-  final ApiClient apiClient;
-  final ValueChanged<UserSummary> onOpenChat;
-
-  @override
-  State<_AddUserSheet> createState() => _AddUserSheetState();
-}
-
-class _AddUserSheetState extends State<_AddUserSheet> {
-  final TextEditingController _controller = TextEditingController();
-  List<UserSummary> _allUsers = [];
-  List<UserSummary> _filteredUsers = [];
-  bool _isLoading = true;
-  int _streakForUser(UserSummary user) {
-    if (_isLeoAntoinePair(user)) {
-      return 12;
+  Widget _buildRequestsList(List<FriendRequest> requests) {
+    if (_isLoadingRequests) {
+      return const Center(child: CircularProgressIndicator());
     }
-    final seed = user.username.codeUnits.fold<int>(0, (sum, unit) => sum + unit);
-    return 1 + (seed % 12);
-  }
 
-  bool _isLeoAntoinePair(UserSummary user) {
-    final a = widget.sessionUsername.toLowerCase();
-    final b = user.username.toLowerCase();
-    return (a == 'leo' && b == 'antoine') || (a == 'antoine' && b == 'leo');
-  }
-
-  @override
-  void initState() {
-    super.initState();
-    _loadUsers();
-    _controller.addListener(_filter);
-  }
-
-  @override
-  void dispose() {
-    _controller.removeListener(_filter);
-    _controller.dispose();
-    super.dispose();
-  }
-
-  Future<void> _loadUsers() async {
-    try {
-      final users = await widget.apiClient.fetchUsers(
-        excludeUserId: widget.sessionId,
-      );
-      if (!mounted) {
-        return;
-      }
-      setState(() {
-        _allUsers = users;
-        _filteredUsers = users;
-        _isLoading = false;
-      });
-    } catch (_) {
-      if (!mounted) {
-        return;
-      }
-      setState(() {
-        _allUsers = [];
-        _filteredUsers = [];
-        _isLoading = false;
-      });
-    }
-  }
-
-  void _filter() {
-    final query = _controller.text.trim().toLowerCase();
-    setState(() {
-      _filteredUsers = _allUsers
-          .where((user) => user.username.toLowerCase().contains(query))
-          .toList();
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final padding = MediaQuery.of(context).viewInsets +
-        const EdgeInsets.symmetric(horizontal: 24, vertical: 20);
-
-    return Container(
-      padding: padding,
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-      ),
-      child: SafeArea(
-        top: false,
+    if (_requestsError != null) {
+      return Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Container(
-              width: 46,
-              height: 5,
-              decoration: BoxDecoration(
-                color: Colors.black.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(999),
-              ),
+            Text(_requestsError!),
+            const SizedBox(height: 12),
+            ElevatedButton(
+              onPressed: _refresh,
+              child: const Text('Reessayer'),
             ),
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                const Icon(Icons.person_add_alt_1_rounded),
-                const SizedBox(width: 12),
-                Text(
-                  'Ajouter un contact',
-                  style: Theme.of(context).textTheme.titleLarge,
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: _controller,
-              decoration: const InputDecoration(
-                hintText: 'Rechercher un utilisateur',
-                prefixIcon: Icon(Icons.search_rounded),
-              ),
-            ),
-            const SizedBox(height: 16),
-            if (_isLoading)
-              const Padding(
-                padding: EdgeInsets.all(24),
-                child: CircularProgressIndicator(),
-              )
-            else if (_filteredUsers.isEmpty)
-              const Padding(
-                padding: EdgeInsets.all(24),
-                child: Text('Aucun utilisateur trouve.'),
-              )
-            else
-              SizedBox(
-                height: 300,
-                child: ListView.separated(
-                  itemCount: _filteredUsers.length,
-                  separatorBuilder: (_, __) => const Divider(height: 16),
-                  itemBuilder: (context, index) {
-                    final user = _filteredUsers[index];
-                    final streak = _streakForUser(user);
-                    return ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      leading: UserAvatar(
-                        label: user.username,
-                        isOnline: user.isOnline,
-                      ),
-                      title: Text(user.username),
-                      subtitle: Text(
-                        user.isOnline
-                            ? 'En ligne'
-                            : 'Hors ligne',
-                      ),
-                      trailing: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text('Flamme $streak'),
-                          const SizedBox(width: 8),
-                          IconButton(
-                            icon: const Icon(Icons.chat_bubble_outline),
-                            onPressed: () => widget.onOpenChat(user),
-                          ),
-                        ],
-                      ),
-                    );
-                  },
-                ),
-              ),
           ],
         ),
+      );
+    }
+
+    if (requests.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.mail_outline, size: 36),
+            const SizedBox(height: 12),
+            const Text('Aucune invitation pour l\'instant.'),
+          ],
+        ),
+      );
+    }
+
+    return RefreshIndicator(
+      onRefresh: _refresh,
+      child: ListView.separated(
+        physics: const AlwaysScrollableScrollPhysics(),
+        itemCount: requests.length,
+        separatorBuilder: (_, __) => const SizedBox(height: 12),
+        itemBuilder: (context, index) {
+          final request = requests[index];
+          final user = request.fromUser;
+          final statusText = user.isOnline
+              ? 'En ligne'
+              : _formatLastSeen(user.lastSeenAt);
+
+          return Card(
+            child: ListTile(
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 16,
+                vertical: 6,
+              ),
+              leading: UserAvatar(
+                label: user.username,
+                isOnline: user.isOnline,
+              ),
+              title: Text(user.username),
+              subtitle: Text(statusText),
+              trailing: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextButton(
+                    onPressed: () => _declineRequest(request),
+                    child: const Text('Refuser'),
+                  ),
+                  const SizedBox(width: 4),
+                  ElevatedButton(
+                    onPressed: () => _acceptRequest(request),
+                    child: const Text('Accepter'),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildDiscoverList(List<UserSummary> users) {
+    if (_isLoadingDiscover) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (_discoverError != null) {
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(_discoverError!),
+            const SizedBox(height: 12),
+            ElevatedButton(
+              onPressed: _refresh,
+              child: const Text('Reessayer'),
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (users.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.search_off, size: 36),
+            const SizedBox(height: 12),
+            const Text('Aucun utilisateur a ajouter.'),
+          ],
+        ),
+      );
+    }
+
+    return RefreshIndicator(
+      onRefresh: _refresh,
+      child: ListView.separated(
+        physics: const AlwaysScrollableScrollPhysics(),
+        itemCount: users.length,
+        separatorBuilder: (_, __) => const SizedBox(height: 12),
+        itemBuilder: (context, index) {
+          final user = users[index];
+          final statusText = user.isOnline
+              ? 'En ligne'
+              : _formatLastSeen(user.lastSeenAt);
+
+          return Card(
+            child: ListTile(
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 16,
+                vertical: 6,
+              ),
+              leading: UserAvatar(
+                label: user.username,
+                isOnline: user.isOnline,
+              ),
+              title: Text(user.username),
+              subtitle: Text(statusText),
+              trailing: TextButton.icon(
+                onPressed: () => _sendRequest(user),
+                icon: const Icon(Icons.person_add_alt_1_rounded),
+                label: const Text('Ajouter'),
+              ),
+            ),
+          );
+        },
       ),
     );
   }

@@ -14,12 +14,12 @@ class UserAvatar extends StatelessWidget {
 
   Color _colorForLabel(String value) {
     const palette = [
-      Color(0xFF0C8A6A),
-      Color(0xFF2B7A78),
-      Color(0xFF3A6D8C),
-      Color(0xFF7A4EAB),
-      Color(0xFFC46D4C),
-      Color(0xFFB84C65),
+      Color(0xFF2D7BFF),
+      Color(0xFF5C9DFF),
+      Color(0xFF1F4FE3),
+      Color(0xFF2EC4FF),
+      Color(0xFF6B7CFF),
+      Color(0xFF4CB1FF),
     ];
 
     final hash = value.codeUnits.fold<int>(0, (sum, unit) => sum + unit);

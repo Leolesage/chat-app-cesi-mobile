@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../models/user.dart';
+import '../config/app_config.dart';
 import '../services/api_client.dart';
 import '../widgets/app_background.dart';
 import '../widgets/user_avatar.dart';
@@ -18,18 +19,40 @@ class _LoginScreenState extends State<LoginScreen> {
   final _passwordController = TextEditingController();
   final ApiClient _apiClient = ApiClient();
   bool _isLoading = false;
+  String? _errorMessage;
+
+  @override
+  void initState() {
+    super.initState();
+    _usernameController.addListener(_clearError);
+    _passwordController.addListener(_clearError);
+  }
 
   @override
   void dispose() {
+    _usernameController.removeListener(_clearError);
+    _passwordController.removeListener(_clearError);
     _usernameController.dispose();
     _passwordController.dispose();
     super.dispose();
   }
 
-  void _showMessage(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)),
-    );
+  void _clearError() {
+    if (_errorMessage == null) {
+      return;
+    }
+    setState(() {
+      _errorMessage = null;
+    });
+  }
+
+  void _setError(String? message) {
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _errorMessage = message;
+    });
   }
 
   Future<void> _submit() async {
@@ -37,7 +60,7 @@ class _LoginScreenState extends State<LoginScreen> {
     final password = _passwordController.text;
 
     if (username.isEmpty || password.isEmpty) {
-      _showMessage('Username et mot de passe obligatoires');
+      _setError('Username et mot de passe obligatoires');
       return;
     }
 
@@ -48,6 +71,7 @@ class _LoginScreenState extends State<LoginScreen> {
     FocusScope.of(context).unfocus();
     setState(() {
       _isLoading = true;
+      _errorMessage = null;
     });
 
     try {
@@ -69,9 +93,11 @@ class _LoginScreenState extends State<LoginScreen> {
         ),
       );
     } on ApiException catch (error) {
-      _showMessage(error.message);
+      _setError(error.message);
     } catch (error) {
-      _showMessage('Impossible de contacter l\'API');
+      _setError(
+        'Impossible de contacter l\'API. Verifie que le serveur tourne.',
+      );
     } finally {
       if (mounted) {
         setState(() {
@@ -89,11 +115,11 @@ class _LoginScreenState extends State<LoginScreen> {
       body: AppBackground(
         child: SafeArea(
           child: Center(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
@@ -167,6 +193,57 @@ class _LoginScreenState extends State<LoginScreen> {
                               labelText: 'Mot de passe',
                             ),
                           ),
+                          if (_errorMessage != null) ...[
+                            const SizedBox(height: 16),
+                            Container(
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: colorScheme.errorContainer,
+                                borderRadius: BorderRadius.circular(14),
+                              ),
+                              child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Icon(
+                                    Icons.error_outline,
+                                    color: colorScheme.onErrorContainer,
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          _errorMessage!,
+                                          style: Theme.of(context)
+                                              .textTheme
+                                              .bodyMedium
+                                              ?.copyWith(
+                                                color: colorScheme
+                                                    .onErrorContainer,
+                                                fontWeight: FontWeight.w600,
+                                              ),
+                                        ),
+                                        const SizedBox(height: 4),
+                                        Text(
+                                          'API: ${AppConfig.apiBaseUrl}',
+                                          style: Theme.of(context)
+                                              .textTheme
+                                              .bodySmall
+                                              ?.copyWith(
+                                                color: colorScheme
+                                                    .onErrorContainer
+                                                    .withOpacity(0.75),
+                                              ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
                           const SizedBox(height: 20),
                           SizedBox(
                             width: double.infinity,
