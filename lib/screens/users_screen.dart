@@ -33,6 +33,7 @@ class _UsersScreenState extends State<UsersScreen>
   bool _isLoading = true;
   Timer? _presenceTimer;
   Timer? _refreshTimer;
+  int _activeTabIndex = 0;
 
   @override
   void initState() {
@@ -175,6 +176,22 @@ class _UsersScreenState extends State<UsersScreen>
         .toList();
   }
 
+  int _streakForUser(UserSummary user) {
+    final seed = user.username.codeUnits.fold<int>(0, (sum, unit) => sum + unit);
+    return 1 + (seed % 12);
+  }
+
+  bool _isBestFriend(UserSummary user) {
+    final seed = user.username.codeUnits.fold<int>(0, (sum, unit) => sum + unit);
+    return seed % 5 == 0;
+  }
+
+  List<UserSummary> _topFriends(List<UserSummary> users) {
+    final sorted = [...users];
+    sorted.sort((a, b) => _streakForUser(b).compareTo(_streakForUser(a)));
+    return sorted.take(5).toList();
+  }
+
   String _formatLastSeen(DateTime? lastSeenAt) {
     if (lastSeenAt == null) {
       return 'Hors ligne';
@@ -216,6 +233,8 @@ class _UsersScreenState extends State<UsersScreen>
     final statusText = widget.session.created
         ? 'Compte cree avec succes.'
         : 'Connexion reussie.';
+    final filteredUsers = _filterUsers(_users);
+    final topFriends = _topFriends(filteredUsers);
 
     return Scaffold(
       appBar: AppBar(
@@ -283,6 +302,7 @@ class _UsersScreenState extends State<UsersScreen>
                             ],
                           ),
                         ),
+                        const Chip(label: Text('?? 12')),
                       ],
                     ),
                   ),
@@ -304,6 +324,30 @@ class _UsersScreenState extends State<UsersScreen>
                   ],
                 ),
                 const SizedBox(height: 12),
+                Row(
+                  children: [
+                    ChoiceChip(
+                      label: const Text('Chats'),
+                      selected: _activeTabIndex == 0,
+                      onSelected: (_) {
+                        setState(() {
+                          _activeTabIndex = 0;
+                        });
+                      },
+                    ),
+                    const SizedBox(width: 10),
+                    ChoiceChip(
+                      label: const Text('Amis proches'),
+                      selected: _activeTabIndex == 1,
+                      onSelected: (_) {
+                        setState(() {
+                          _activeTabIndex = 1;
+                        });
+                      },
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
                 TextField(
                   controller: _searchController,
                   decoration: const InputDecoration(
@@ -312,6 +356,58 @@ class _UsersScreenState extends State<UsersScreen>
                   ),
                 ),
                 const SizedBox(height: 16),
+                if (_activeTabIndex == 1 && topFriends.isNotEmpty) ...[
+                  Text(
+                    'Amis de flamme',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    height: 110,
+                    child: ListView.separated(
+                      scrollDirection: Axis.horizontal,
+                      itemCount: topFriends.length,
+                      separatorBuilder: (_, __) => const SizedBox(width: 12),
+                      itemBuilder: (context, index) {
+                        final friend = topFriends[index];
+                        final streak = _streakForUser(friend);
+                        return Container(
+                          width: 120,
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.96),
+                            borderRadius: BorderRadius.circular(18),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.05),
+                                blurRadius: 12,
+                                offset: const Offset(0, 6),
+                              ),
+                            ],
+                          ),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              UserAvatar(
+                                label: friend.username,
+                                isOnline: friend.isOnline,
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                friend.username,
+                                overflow: TextOverflow.ellipsis,
+                                style: Theme.of(context).textTheme.bodyMedium,
+                              ),
+                              const SizedBox(height: 4),
+                              Text('?? $streak'),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                ],
                 Expanded(
                   child: _isLoading
                       ? const Center(child: CircularProgressIndicator())
@@ -371,6 +467,8 @@ class _UsersScreenState extends State<UsersScreen>
           final statusText = user.isOnline
               ? 'En ligne'
               : _formatLastSeen(user.lastSeenAt);
+          final streak = _streakForUser(user);
+          final isBestFriend = _isBestFriend(user);
 
           return Card(
             child: ListTile(
@@ -382,9 +480,40 @@ class _UsersScreenState extends State<UsersScreen>
                 label: user.username,
                 isOnline: user.isOnline,
               ),
-              title: Text(user.username),
+              title: Row(
+                children: [
+                  Expanded(child: Text(user.username)),
+                  if (isBestFriend)
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Theme.of(context)
+                            .colorScheme
+                            .primaryContainer,
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: Text(
+                        'Meilleur ami',
+                        style: Theme.of(context)
+                            .textTheme
+                            .labelSmall
+                            ?.copyWith(fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                ],
+              ),
               subtitle: Text(statusText),
-              trailing: const Icon(Icons.chevron_right),
+              trailing: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text('?? $streak'),
+                  const SizedBox(width: 8),
+                  const Icon(Icons.chevron_right),
+                ],
+              ),
               onTap: () => _openChat(user),
             ),
           );
@@ -414,6 +543,10 @@ class _AddUserSheetState extends State<_AddUserSheet> {
   List<UserSummary> _allUsers = [];
   List<UserSummary> _filteredUsers = [];
   bool _isLoading = true;
+  int _streakForUser(UserSummary user) {
+    final seed = user.username.codeUnits.fold<int>(0, (sum, unit) => sum + unit);
+    return 1 + (seed % 12);
+  }
 
   @override
   void initState() {
@@ -525,6 +658,7 @@ class _AddUserSheetState extends State<_AddUserSheet> {
                   separatorBuilder: (_, __) => const Divider(height: 16),
                   itemBuilder: (context, index) {
                     final user = _filteredUsers[index];
+                    final streak = _streakForUser(user);
                     return ListTile(
                       contentPadding: EdgeInsets.zero,
                       leading: UserAvatar(
@@ -537,9 +671,16 @@ class _AddUserSheetState extends State<_AddUserSheet> {
                             ? 'En ligne'
                             : 'Hors ligne',
                       ),
-                      trailing: IconButton(
-                        icon: const Icon(Icons.chat_bubble_outline),
-                        onPressed: () => widget.onOpenChat(user),
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text('?? $streak'),
+                          const SizedBox(width: 8),
+                          IconButton(
+                            icon: const Icon(Icons.chat_bubble_outline),
+                            onPressed: () => widget.onOpenChat(user),
+                          ),
+                        ],
                       ),
                     );
                   },

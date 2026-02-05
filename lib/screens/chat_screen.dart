@@ -256,10 +256,17 @@ class _ChatScreenState extends State<ChatScreen> {
     return 'Vu il y a ${diff.inDays} j';
   }
 
+  int _streakForPeer() {
+    final seed =
+        widget.peer.username.codeUnits.fold<int>(0, (sum, unit) => sum + unit);
+    return 1 + (seed % 12);
+  }
+
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     final statusText = _peerOnline ? 'En ligne' : _formatLastSeen(_peerLastSeen);
+    final streak = _streakForPeer();
 
     return Scaffold(
       appBar: AppBar(
@@ -285,6 +292,13 @@ class _ChatScreenState extends State<ChatScreen> {
           ],
         ),
         actions: [
+          Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: Chip(
+              label: Text('🔥 $streak'),
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+            ),
+          ),
           IconButton(
             tooltip: 'Plus',
             onPressed: () {},
