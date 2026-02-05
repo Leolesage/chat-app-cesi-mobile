@@ -257,9 +257,18 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   int _streakForPeer() {
+    if (_isLeoAntoinePair()) {
+      return 12;
+    }
     final seed =
         widget.peer.username.codeUnits.fold<int>(0, (sum, unit) => sum + unit);
     return 1 + (seed % 12);
+  }
+
+  bool _isLeoAntoinePair() {
+    final a = widget.session.username.toLowerCase();
+    final b = widget.peer.username.toLowerCase();
+    return (a == 'leo' && b == 'antoine') || (a == 'antoine' && b == 'leo');
   }
 
   @override
@@ -295,7 +304,7 @@ class _ChatScreenState extends State<ChatScreen> {
           Padding(
             padding: const EdgeInsets.only(right: 8),
             child: Chip(
-              label: Text('🔥 $streak'),
+              label: Text('Flamme $streak'),
               padding: const EdgeInsets.symmetric(horizontal: 8),
             ),
           ),

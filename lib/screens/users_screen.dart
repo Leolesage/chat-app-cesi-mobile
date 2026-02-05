@@ -177,13 +177,27 @@ class _UsersScreenState extends State<UsersScreen>
   }
 
   int _streakForUser(UserSummary user) {
+    if (_isLeoAntoinePair(user)) {
+      return 12;
+    }
     final seed = user.username.codeUnits.fold<int>(0, (sum, unit) => sum + unit);
     return 1 + (seed % 12);
   }
 
   bool _isBestFriend(UserSummary user) {
+    if (_isLeoAntoinePair(user)) {
+      return true;
+    }
     final seed = user.username.codeUnits.fold<int>(0, (sum, unit) => sum + unit);
     return seed % 5 == 0;
+  }
+
+  bool _isLeoAntoinePair(UserSummary user) {
+    final a = widget.session.username.toLowerCase();
+    final b = user.username.toLowerCase();
+    final isLeoAntoine =
+        (a == 'leo' && b == 'antoine') || (a == 'antoine' && b == 'leo');
+    return isLeoAntoine;
   }
 
   List<UserSummary> _topFriends(List<UserSummary> users) {
@@ -218,6 +232,7 @@ class _UsersScreenState extends State<UsersScreen>
       builder: (context) {
         return _AddUserSheet(
           sessionId: widget.session.id,
+          sessionUsername: widget.session.username,
           apiClient: widget.apiClient,
           onOpenChat: (user) {
             Navigator.of(context).pop();
@@ -302,7 +317,7 @@ class _UsersScreenState extends State<UsersScreen>
                             ],
                           ),
                         ),
-                        const Chip(label: Text('?? 12')),
+                        const Chip(label: Text('Flamme 12')),
                       ],
                     ),
                   ),
@@ -399,7 +414,7 @@ class _UsersScreenState extends State<UsersScreen>
                                 style: Theme.of(context).textTheme.bodyMedium,
                               ),
                               const SizedBox(height: 4),
-                              Text('?? $streak'),
+                              Text('Flamme $streak'),
                             ],
                           ),
                         );
@@ -509,7 +524,7 @@ class _UsersScreenState extends State<UsersScreen>
               trailing: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text('?? $streak'),
+                  Text('Flamme $streak'),
                   const SizedBox(width: 8),
                   const Icon(Icons.chevron_right),
                 ],
@@ -526,11 +541,13 @@ class _UsersScreenState extends State<UsersScreen>
 class _AddUserSheet extends StatefulWidget {
   const _AddUserSheet({
     required this.sessionId,
+    required this.sessionUsername,
     required this.apiClient,
     required this.onOpenChat,
   });
 
   final int sessionId;
+  final String sessionUsername;
   final ApiClient apiClient;
   final ValueChanged<UserSummary> onOpenChat;
 
@@ -544,8 +561,17 @@ class _AddUserSheetState extends State<_AddUserSheet> {
   List<UserSummary> _filteredUsers = [];
   bool _isLoading = true;
   int _streakForUser(UserSummary user) {
+    if (_isLeoAntoinePair(user)) {
+      return 12;
+    }
     final seed = user.username.codeUnits.fold<int>(0, (sum, unit) => sum + unit);
     return 1 + (seed % 12);
+  }
+
+  bool _isLeoAntoinePair(UserSummary user) {
+    final a = widget.sessionUsername.toLowerCase();
+    final b = user.username.toLowerCase();
+    return (a == 'leo' && b == 'antoine') || (a == 'antoine' && b == 'leo');
   }
 
   @override
@@ -674,7 +700,7 @@ class _AddUserSheetState extends State<_AddUserSheet> {
                       trailing: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Text('?? $streak'),
+                          Text('Flamme $streak'),
                           const SizedBox(width: 8),
                           IconButton(
                             icon: const Icon(Icons.chat_bubble_outline),
