@@ -391,25 +391,6 @@ class _UsersScreenState extends State<UsersScreen> with WidgetsBindingObserver {
     return 'Chats';
   }
 
-  int? _bestFriendId(List<UserSummary> users) {
-    if (users.isEmpty) {
-      return null;
-    }
-
-    final sorted = [...users]
-      ..sort((a, b) {
-        final byName = a.username.toLowerCase().compareTo(
-          b.username.toLowerCase(),
-        );
-        if (byName != 0) {
-          return byName;
-        }
-        return a.id.compareTo(b.id);
-      });
-
-    return sorted.first.id;
-  }
-
   Widget _buildTabMenuButton({
     required int index,
     required String label,
@@ -777,8 +758,6 @@ class _UsersScreenState extends State<UsersScreen> with WidgetsBindingObserver {
       );
     }
 
-    final bestFriendId = _bestFriendId(friends);
-
     return RefreshIndicator(
       onRefresh: _refresh,
       child: ListView.separated(
@@ -787,7 +766,6 @@ class _UsersScreenState extends State<UsersScreen> with WidgetsBindingObserver {
         separatorBuilder: (context, index) => const SizedBox(height: 12),
         itemBuilder: (context, index) {
           final user = friends[index];
-          final isBestFriend = user.id == bestFriendId;
           final pendingCount = _pendingByUser[user.id] ?? 0;
           final statusText = _pendingStatusLabel(user);
 
@@ -801,28 +779,7 @@ class _UsersScreenState extends State<UsersScreen> with WidgetsBindingObserver {
                 label: user.username,
                 isOnline: user.isOnline,
               ),
-              title: Row(
-                children: [
-                  Expanded(child: Text(user.username)),
-                  if (isBestFriend)
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 4,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Theme.of(context).colorScheme.primaryContainer,
-                        borderRadius: BorderRadius.circular(999),
-                      ),
-                      child: Text(
-                        'Meilleur ami',
-                        style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                ],
-              ),
+              title: Row(children: [Expanded(child: Text(user.username))]),
               subtitle: Text(statusText),
               trailing: Row(
                 mainAxisSize: MainAxisSize.min,
