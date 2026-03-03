@@ -18,15 +18,13 @@ class ChatApp extends StatelessWidget {
       brightness: Brightness.light,
       surface: surface,
       surfaceVariant: surfaceAlt,
-    ).copyWith(
-      primary: brand,
-      secondary: const Color(0xFF4CC9FF),
-    );
+    ).copyWith(primary: brand, secondary: const Color(0xFF4CC9FF));
 
     final baseTextTheme = GoogleFonts.manropeTextTheme();
 
     return MaterialApp(
       title: 'CESI Chat',
+      debugShowCheckedModeBanner: false,
       theme: ThemeData(
         colorScheme: colorScheme,
         scaffoldBackgroundColor: surface,

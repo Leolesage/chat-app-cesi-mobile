@@ -1,13 +1,13 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:flutter_ringtone_player/flutter_ringtone_player.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../config/app_config.dart';
 import '../models/message.dart';
 import '../models/user.dart';
 import '../services/api_client.dart';
+import '../services/notification_sound_service.dart';
 import '../widgets/app_background.dart';
 import '../widgets/message_bubble.dart';
 import '../widgets/user_avatar.dart';
@@ -235,11 +235,7 @@ class _ChatScreenState extends State<ChatScreen> {
       return;
     }
 
-    try {
-      FlutterRingtonePlayer().playNotification();
-    } catch (_) {
-      // ignore
-    }
+    unawaited(NotificationSoundService.playIncomingMessage());
   }
 
   Future<void> _markReadIfNeeded() async {

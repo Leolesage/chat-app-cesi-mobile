@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../config/app_config.dart';
 import '../models/user.dart';
 import '../services/api_client.dart';
+import '../services/notification_sound_service.dart';
 import '../widgets/app_background.dart';
 import '../widgets/user_avatar.dart';
 import 'chat_screen.dart';
@@ -36,8 +37,12 @@ class _UsersScreenState extends State<UsersScreen> with WidgetsBindingObserver {
   bool _isLoadingFriends = true;
   bool _isLoadingRequests = false;
   bool _isLoadingDiscover = false;
+  bool _isRefreshingPending = false;
+  bool _pendingInitialized = false;
   Timer? _presenceTimer;
   Timer? _refreshTimer;
+  Map<int, int> _pendingByUser = {};
+  int _pendingTotal = 0;
   int _activeTabIndex = 0;
 
   @override
@@ -143,6 +148,8 @@ class _UsersScreenState extends State<UsersScreen> with WidgetsBindingObserver {
         _friendsError = null;
         _isLoadingFriends = false;
       });
+
+      unawaited(_refreshPendingMessages(users));
     } on ApiException catch (_) {
       if (!mounted) {
         return;
@@ -245,6 +252,65 @@ class _UsersScreenState extends State<UsersScreen> with WidgetsBindingObserver {
     }
   }
 
+  Future<void> _refreshPendingMessages(List<UserSummary> friends) async {
+    if (_isRefreshingPending) {
+      return;
+    }
+
+    _isRefreshingPending = true;
+    final nextPendingByUser = <int, int>{};
+
+    try {
+      for (final user in friends) {
+        final lastReadId = await widget.apiClient.fetchLastReadId(
+          userId: widget.session.id,
+          withId: user.id,
+        );
+
+        final deltaMessages = await widget.apiClient.fetchMessages(
+          userId: widget.session.id,
+          peerId: user.id,
+          sinceId: lastReadId,
+        );
+
+        final pendingCount = deltaMessages
+            .where(
+              (message) =>
+                  message.senderId == user.id && message.readAt == null,
+            )
+            .length;
+
+        if (pendingCount > 0) {
+          nextPendingByUser[user.id] = pendingCount;
+        }
+      }
+    } catch (_) {
+      // silent
+    } finally {
+      _isRefreshingPending = false;
+    }
+
+    if (!mounted) {
+      return;
+    }
+
+    final nextTotal = nextPendingByUser.values.fold<int>(
+      0,
+      (total, value) => total + value,
+    );
+    final shouldPlaySound = _pendingInitialized && nextTotal > _pendingTotal;
+
+    setState(() {
+      _pendingByUser = nextPendingByUser;
+      _pendingTotal = nextTotal;
+      _pendingInitialized = true;
+    });
+
+    if (shouldPlaySound) {
+      unawaited(NotificationSoundService.playIncomingMessage());
+    }
+  }
+
   Future<void> _refresh() async {
     if (_activeTabIndex == 0) {
       await _loadFriends(showLoading: true);
@@ -257,8 +323,8 @@ class _UsersScreenState extends State<UsersScreen> with WidgetsBindingObserver {
     await _loadDiscover(showLoading: true);
   }
 
-  void _openChat(UserSummary user) {
-    Navigator.of(context).push(
+  Future<void> _openChat(UserSummary user) async {
+    await Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => ChatScreen(
           session: widget.session,
@@ -267,6 +333,12 @@ class _UsersScreenState extends State<UsersScreen> with WidgetsBindingObserver {
         ),
       ),
     );
+
+    if (!mounted) {
+      return;
+    }
+
+    await _loadFriends();
   }
 
   List<UserSummary> _filterUsers(List<UserSummary> users) {
@@ -338,7 +410,11 @@ class _UsersScreenState extends State<UsersScreen> with WidgetsBindingObserver {
     return sorted.first.id;
   }
 
-  Widget _buildTabMenuButton({required int index, required String label}) {
+  Widget _buildTabMenuButton({
+    required int index,
+    required String label,
+    int badgeCount = 0,
+  }) {
     final selected = _activeTabIndex == index;
     final colorScheme = Theme.of(context).colorScheme;
 
@@ -356,11 +432,20 @@ class _UsersScreenState extends State<UsersScreen> with WidgetsBindingObserver {
         shape: const StadiumBorder(),
         padding: const EdgeInsets.symmetric(vertical: 10),
       ),
-      child: Text(
-        label,
-        style: Theme.of(
-          context,
-        ).textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w600),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Text(
+            label,
+            style: Theme.of(
+              context,
+            ).textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w600),
+          ),
+          if (badgeCount > 0) ...[
+            const SizedBox(width: 8),
+            _buildPendingBadge(badgeCount),
+          ],
+        ],
       ),
     );
   }
@@ -375,6 +460,53 @@ class _UsersScreenState extends State<UsersScreen> with WidgetsBindingObserver {
     if (index == 2 && _discoverUsers.isEmpty) {
       _loadDiscover(showLoading: true);
     }
+  }
+
+  Widget _buildPendingBadge(int count) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final text = count > 99 ? '99+' : '$count';
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: colorScheme.error,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      constraints: const BoxConstraints(minWidth: 20),
+      child: Text(
+        text,
+        textAlign: TextAlign.center,
+        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+          color: colorScheme.onError,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMenuIconWithBadge() {
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        const Icon(Icons.more_vert_rounded),
+        if (_pendingTotal > 0)
+          Positioned(
+            right: -4,
+            top: -6,
+            child: _buildPendingBadge(_pendingTotal),
+          ),
+      ],
+    );
+  }
+
+  String _pendingStatusLabel(UserSummary user) {
+    final pending = _pendingByUser[user.id] ?? 0;
+    if (pending <= 0) {
+      return user.isOnline ? 'En ligne' : _formatLastSeen(user.lastSeenAt);
+    }
+
+    final suffix = pending > 1 ? 's' : '';
+    return 'En attente: $pending message$suffix';
   }
 
   Future<void> _sendRequest(UserSummary user) async {
@@ -454,13 +586,32 @@ class _UsersScreenState extends State<UsersScreen> with WidgetsBindingObserver {
             onPressed: _refresh,
             icon: const Icon(Icons.refresh_rounded),
           ),
-          TextButton(
-            onPressed: () {
-              Navigator.of(context).pushReplacement(
-                MaterialPageRoute(builder: (_) => const LoginScreen()),
-              );
+          PopupMenuButton<String>(
+            tooltip: 'Menu',
+            icon: _buildMenuIconWithBadge(),
+            onSelected: (value) {
+              if (value == 'logout') {
+                Navigator.of(context).pushReplacement(
+                  MaterialPageRoute(builder: (_) => const LoginScreen()),
+                );
+              }
             },
-            child: const Text('Deconnexion'),
+            itemBuilder: (context) => [
+              PopupMenuItem<String>(
+                enabled: false,
+                value: 'pending_info',
+                child: Text(
+                  _pendingTotal > 0
+                      ? '$_pendingTotal message(s) en attente'
+                      : 'Aucun message en attente',
+                ),
+              ),
+              const PopupMenuDivider(),
+              const PopupMenuItem<String>(
+                value: 'logout',
+                child: Text('Deconnexion'),
+              ),
+            ],
           ),
         ],
       ),
@@ -516,6 +667,28 @@ class _UsersScreenState extends State<UsersScreen> with WidgetsBindingObserver {
                         style: Theme.of(context).textTheme.titleLarge,
                       ),
                     ),
+                    if (_pendingTotal > 0)
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 6,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Theme.of(context).colorScheme.errorContainer,
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                        child: Text(
+                          '$_pendingTotal en attente',
+                          style: Theme.of(context).textTheme.labelMedium
+                              ?.copyWith(
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.onErrorContainer,
+                                fontWeight: FontWeight.w700,
+                              ),
+                        ),
+                      ),
+                    if (_pendingTotal > 0) const SizedBox(width: 8),
                     if (_activeTabIndex == 2)
                       TextButton.icon(
                         onPressed: _refresh,
@@ -528,7 +701,11 @@ class _UsersScreenState extends State<UsersScreen> with WidgetsBindingObserver {
                 Row(
                   children: [
                     Expanded(
-                      child: _buildTabMenuButton(index: 0, label: _tabLabel(0)),
+                      child: _buildTabMenuButton(
+                        index: 0,
+                        label: _tabLabel(0),
+                        badgeCount: _pendingTotal,
+                      ),
                     ),
                     const SizedBox(width: 10),
                     Expanded(
@@ -613,9 +790,8 @@ class _UsersScreenState extends State<UsersScreen> with WidgetsBindingObserver {
         itemBuilder: (context, index) {
           final user = friends[index];
           final isBestFriend = user.id == bestFriendId;
-          final statusText = user.isOnline
-              ? 'En ligne'
-              : _formatLastSeen(user.lastSeenAt);
+          final pendingCount = _pendingByUser[user.id] ?? 0;
+          final statusText = _pendingStatusLabel(user);
 
           return Card(
             child: ListTile(
@@ -650,7 +826,16 @@ class _UsersScreenState extends State<UsersScreen> with WidgetsBindingObserver {
                 ],
               ),
               subtitle: Text(statusText),
-              trailing: const Icon(Icons.chevron_right),
+              trailing: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (pendingCount > 0) ...[
+                    _buildPendingBadge(pendingCount),
+                    const SizedBox(width: 8),
+                  ],
+                  const Icon(Icons.chevron_right),
+                ],
+              ),
               onTap: () => _openChat(user),
             ),
           );
