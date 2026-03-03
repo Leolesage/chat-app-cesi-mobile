@@ -31,11 +31,7 @@ class UserSummary {
       throw const FormatException('Utilisateur invalide');
     }
 
-    final lastSeenRaw = json['last_seen_at'];
-    DateTime? lastSeenAt;
-    if (lastSeenRaw is String && lastSeenRaw.isNotEmpty) {
-      lastSeenAt = DateTime.tryParse(lastSeenRaw);
-    }
+    final lastSeenAt = _parseApiDateTime(json['last_seen_at']);
 
     final isOnline = isOnlineValue == true || isOnlineValue == 1;
 
@@ -72,17 +68,8 @@ class FriendRequest {
       throw const FormatException('Invitation invalide');
     }
 
-    final createdRaw = json['created_at'];
-    DateTime? createdAt;
-    if (createdRaw is String && createdRaw.isNotEmpty) {
-      createdAt = DateTime.tryParse(createdRaw);
-    }
-
-    final lastSeenRaw = json['last_seen_at'];
-    DateTime? lastSeenAt;
-    if (lastSeenRaw is String && lastSeenRaw.isNotEmpty) {
-      lastSeenAt = DateTime.tryParse(lastSeenRaw);
-    }
+    final createdAt = _parseApiDateTime(json['created_at']);
+    final lastSeenAt = _parseApiDateTime(json['last_seen_at']);
 
     final isOnline = isOnlineValue == true || isOnlineValue == 1;
 
@@ -97,4 +84,30 @@ class FriendRequest {
       createdAt: createdAt,
     );
   }
+}
+
+DateTime? _parseApiDateTime(dynamic rawValue) {
+  if (rawValue is! String || rawValue.isEmpty) {
+    return null;
+  }
+
+  final value = rawValue.trim();
+  if (value.isEmpty) {
+    return null;
+  }
+
+  final hasTimezone =
+      value.endsWith('Z') || RegExp(r'[+-]\d{2}:\d{2}$').hasMatch(value);
+  final normalized = hasTimezone
+      ? value
+      : value.contains(' ')
+      ? '${value.replaceFirst(' ', 'T')}Z'
+      : value;
+
+  final parsed = DateTime.tryParse(normalized) ?? DateTime.tryParse(value);
+  if (parsed == null) {
+    return null;
+  }
+
+  return parsed.isUtc ? parsed.toLocal() : parsed;
 }

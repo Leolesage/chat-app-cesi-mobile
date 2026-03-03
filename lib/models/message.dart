@@ -29,17 +29,8 @@ class ChatMessage {
       throw const FormatException('Message invalide');
     }
 
-    final createdRaw = json['created_at'];
-    DateTime? createdAt;
-    if (createdRaw is String && createdRaw.isNotEmpty) {
-      createdAt = DateTime.tryParse(createdRaw);
-    }
-
-    final readRaw = json['read_at'];
-    DateTime? readAt;
-    if (readRaw is String && readRaw.isNotEmpty) {
-      readAt = DateTime.tryParse(readRaw);
-    }
+    final createdAt = _parseApiDateTime(json['created_at']);
+    final readAt = _parseApiDateTime(json['read_at']);
 
     return ChatMessage(
       id: idValue.toInt(),
@@ -50,4 +41,30 @@ class ChatMessage {
       readAt: readAt,
     );
   }
+}
+
+DateTime? _parseApiDateTime(dynamic rawValue) {
+  if (rawValue is! String || rawValue.isEmpty) {
+    return null;
+  }
+
+  final value = rawValue.trim();
+  if (value.isEmpty) {
+    return null;
+  }
+
+  final hasTimezone =
+      value.endsWith('Z') || RegExp(r'[+-]\d{2}:\d{2}$').hasMatch(value);
+  final normalized = hasTimezone
+      ? value
+      : value.contains(' ')
+      ? '${value.replaceFirst(' ', 'T')}Z'
+      : value;
+
+  final parsed = DateTime.tryParse(normalized) ?? DateTime.tryParse(value);
+  if (parsed == null) {
+    return null;
+  }
+
+  return parsed.isUtc ? parsed.toLocal() : parsed;
 }
