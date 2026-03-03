@@ -26,7 +26,7 @@ class AppConfig {
   }
 
   static const Duration requestTimeout = Duration(seconds: 8);
-  static const Duration pollInterval = Duration(seconds: 3);
-  static const Duration presenceInterval = Duration(seconds: 10);
-  static const Duration usersRefreshInterval = Duration(seconds: 12);
+  static const Duration pollInterval = Duration(seconds: 2);
+  static const Duration presenceInterval = Duration(seconds: 4);
+  static const Duration usersRefreshInterval = Duration(seconds: 3);
 }
