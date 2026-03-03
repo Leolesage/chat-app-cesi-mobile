@@ -1,7 +1,5 @@
 import 'dart:async';
 
-import 'package:battery_plus/battery_plus.dart';
-import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/material.dart';
 
 import '../config/app_config.dart';
@@ -28,8 +26,6 @@ class UsersScreen extends StatefulWidget {
 
 class _UsersScreenState extends State<UsersScreen> with WidgetsBindingObserver {
   final _searchController = TextEditingController();
-  final Battery _battery = Battery();
-  final Connectivity _connectivity = Connectivity();
   List<UserSummary> _friends = [];
   List<UserSummary> _discoverUsers = [];
   List<FriendRequest> _requests = [];
@@ -42,10 +38,6 @@ class _UsersScreenState extends State<UsersScreen> with WidgetsBindingObserver {
   bool _isLoadingDiscover = false;
   Timer? _presenceTimer;
   Timer? _refreshTimer;
-  Timer? _nativeStatusTimer;
-  StreamSubscription? _connectivitySubscription;
-  int? _batteryLevel;
-  String _connectivityLabel = 'Chargement...';
   int _activeTabIndex = 0;
 
   @override
@@ -58,7 +50,6 @@ class _UsersScreenState extends State<UsersScreen> with WidgetsBindingObserver {
     _loadDiscover(showLoading: true);
     _startPresence();
     _startAutoRefresh();
-    _initNativeComponents();
   }
 
   @override
@@ -68,8 +59,6 @@ class _UsersScreenState extends State<UsersScreen> with WidgetsBindingObserver {
     _searchController.dispose();
     _presenceTimer?.cancel();
     _refreshTimer?.cancel();
-    _nativeStatusTimer?.cancel();
-    _connectivitySubscription?.cancel();
     super.dispose();
   }
 
@@ -78,14 +67,11 @@ class _UsersScreenState extends State<UsersScreen> with WidgetsBindingObserver {
     if (state == AppLifecycleState.resumed) {
       _startPresence();
       _startAutoRefresh();
-      _restartNativeComponents();
     } else if (state == AppLifecycleState.paused ||
         state == AppLifecycleState.inactive ||
         state == AppLifecycleState.detached) {
       _presenceTimer?.cancel();
       _refreshTimer?.cancel();
-      _nativeStatusTimer?.cancel();
-      _connectivitySubscription?.cancel();
     }
   }
 
@@ -125,117 +111,6 @@ class _UsersScreenState extends State<UsersScreen> with WidgetsBindingObserver {
       AppConfig.usersRefreshInterval,
       (_) => _loadFriends(),
     );
-  }
-
-  void _restartNativeComponents() {
-    _nativeStatusTimer?.cancel();
-    _connectivitySubscription?.cancel();
-    _initNativeComponents();
-  }
-
-  Future<void> _initNativeComponents() async {
-    await _refreshNativeStatus();
-
-    _connectivitySubscription = _connectivity.onConnectivityChanged.listen((
-      dynamic rawResults,
-    ) {
-      final results = _normalizeConnectivity(rawResults);
-      if (!mounted) {
-        return;
-      }
-
-      setState(() {
-        _connectivityLabel = _formatConnectivity(results);
-      });
-    });
-
-    _nativeStatusTimer = Timer.periodic(
-      const Duration(seconds: 20),
-      (_) => _refreshBatteryStatus(),
-    );
-  }
-
-  Future<void> _refreshNativeStatus() async {
-    await _refreshBatteryStatus();
-    await _refreshConnectivityStatus();
-  }
-
-  Future<void> _refreshBatteryStatus() async {
-    try {
-      final level = await _battery.batteryLevel;
-      if (!mounted) {
-        return;
-      }
-      setState(() {
-        _batteryLevel = level;
-      });
-    } catch (_) {
-      // silent
-    }
-  }
-
-  Future<void> _refreshConnectivityStatus() async {
-    try {
-      final rawResults = await _connectivity.checkConnectivity();
-      final results = _normalizeConnectivity(rawResults);
-      if (!mounted) {
-        return;
-      }
-      setState(() {
-        _connectivityLabel = _formatConnectivity(results);
-      });
-    } catch (_) {
-      // silent
-    }
-  }
-
-  List<ConnectivityResult> _normalizeConnectivity(dynamic rawResults) {
-    if (rawResults is ConnectivityResult) {
-      return [rawResults];
-    }
-    if (rawResults is List) {
-      return rawResults.whereType<ConnectivityResult>().toList();
-    }
-    return const <ConnectivityResult>[];
-  }
-
-  String _formatConnectivity(List<ConnectivityResult> results) {
-    final names = results.map((result) => result.name).toSet();
-    if (names.isEmpty || names.contains('none')) {
-      return 'Hors ligne';
-    }
-
-    final labels = <String>[];
-    if (names.contains('wifi')) {
-      labels.add('Wi-Fi');
-    }
-    if (names.contains('mobile')) {
-      labels.add('Donnees mobiles');
-    }
-    if (names.contains('ethernet')) {
-      labels.add('Ethernet');
-    }
-    if (names.contains('bluetooth')) {
-      labels.add('Bluetooth');
-    }
-    if (names.contains('vpn')) {
-      labels.add('VPN');
-    }
-    if (names.contains('other')) {
-      labels.add('Autre');
-    }
-
-    if (labels.isEmpty) {
-      return 'Connecte';
-    }
-    return labels.join(' + ');
-  }
-
-  String _batteryText() {
-    if (_batteryLevel == null) {
-      return 'Indisponible';
-    }
-    return '$_batteryLevel%';
   }
 
   Future<void> _sendPresence() async {
@@ -633,8 +508,6 @@ class _UsersScreenState extends State<UsersScreen> with WidgetsBindingObserver {
                   ),
                 ),
                 const SizedBox(height: 20),
-                _buildNativeComponentsCard(),
-                const SizedBox(height: 20),
                 Row(
                   children: [
                     Expanded(
@@ -688,60 +561,6 @@ class _UsersScreenState extends State<UsersScreen> with WidgetsBindingObserver {
               ],
             ),
           ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildNativeComponentsCard() {
-    final colorScheme = Theme.of(context).colorScheme;
-
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(Icons.memory_rounded, color: colorScheme.primary),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    'Composants natifs Android',
-                    style: Theme.of(context).textTheme.titleMedium,
-                  ),
-                ),
-                IconButton(
-                  tooltip: 'Actualiser',
-                  onPressed: () => _refreshNativeStatus(),
-                  icon: const Icon(Icons.refresh_rounded),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Icon(Icons.battery_full_rounded, color: colorScheme.primary),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text('Batterie (battery_plus): ${_batteryText()}'),
-                ),
-              ],
-            ),
-            const SizedBox(height: 10),
-            Row(
-              children: [
-                Icon(Icons.network_check_rounded, color: colorScheme.primary),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    'Connectivite (connectivity_plus): $_connectivityLabel',
-                  ),
-                ),
-              ],
-            ),
-          ],
         ),
       ),
     );

@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../models/user.dart';
-import '../config/app_config.dart';
 import '../services/api_client.dart';
 import '../widgets/app_background.dart';
 import '../widgets/user_avatar.dart';
@@ -86,10 +84,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(
-          builder: (_) => UsersScreen(
-            session: session,
-            apiClient: _apiClient,
-          ),
+          builder: (_) => UsersScreen(session: session, apiClient: _apiClient),
         ),
       );
     } on ApiException catch (error) {
@@ -115,11 +110,11 @@ class _LoginScreenState extends State<LoginScreen> {
       body: AppBackground(
         child: SafeArea(
           child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
@@ -134,12 +129,8 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                         child: Text(
                           'CESI LIVE',
-                          style: Theme.of(context)
-                              .textTheme
-                              .labelLarge
-                              ?.copyWith(
-                                color: colorScheme.onPrimaryContainer,
-                              ),
+                          style: Theme.of(context).textTheme.labelLarge
+                              ?.copyWith(color: colorScheme.onPrimaryContainer),
                         ),
                       ),
                     ],
@@ -169,9 +160,9 @@ class _LoginScreenState extends State<LoginScreen> {
                               Expanded(
                                 child: Text(
                                   'Bienvenue sur le chat CESI',
-                                  style: Theme.of(context)
-                                      .textTheme
-                                      .titleMedium,
+                                  style: Theme.of(
+                                    context,
+                                  ).textTheme.titleMedium,
                                 ),
                               ),
                             ],
@@ -223,18 +214,6 @@ class _LoginScreenState extends State<LoginScreen> {
                                                 color: colorScheme
                                                     .onErrorContainer,
                                                 fontWeight: FontWeight.w600,
-                                              ),
-                                        ),
-                                        const SizedBox(height: 4),
-                                        Text(
-                                          'API: ${AppConfig.apiBaseUrl}',
-                                          style: Theme.of(context)
-                                              .textTheme
-                                              .bodySmall
-                                              ?.copyWith(
-                                                color: colorScheme
-                                                    .onErrorContainer
-                                                    .withOpacity(0.75),
                                               ),
                                         ),
                                       ],

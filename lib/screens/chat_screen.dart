@@ -1,6 +1,8 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_ringtone_player/flutter_ringtone_player.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../config/app_config.dart';
 import '../models/message.dart';
@@ -30,10 +32,13 @@ class _ChatScreenState extends State<ChatScreen> {
   final _messageController = TextEditingController();
   final _scrollController = ScrollController();
   final List<ChatMessage> _messages = [];
+  late final String _draftStorageKey;
   Timer? _pollTimer;
+  SharedPreferences? _prefs;
   bool _isLoading = true;
   bool _isSending = false;
   bool _isFetching = false;
+  bool _isRestoringDraft = false;
   int _lastMessageId = 0;
   bool _peerOnline = false;
   DateTime? _peerLastSeen;
@@ -44,8 +49,11 @@ class _ChatScreenState extends State<ChatScreen> {
   @override
   void initState() {
     super.initState();
+    _draftStorageKey = 'chat_draft_${widget.session.id}_${widget.peer.id}';
     _peerOnline = widget.peer.isOnline;
     _peerLastSeen = widget.peer.lastSeenAt;
+    _messageController.addListener(_persistDraft);
+    _initLocalDraftStorage();
     _loadInitial();
     _pollTimer = Timer.periodic(
       AppConfig.pollInterval,
@@ -56,6 +64,7 @@ class _ChatScreenState extends State<ChatScreen> {
   @override
   void dispose() {
     _pollTimer?.cancel();
+    _messageController.removeListener(_persistDraft);
     _messageController.dispose();
     _scrollController.dispose();
     super.dispose();
@@ -87,6 +96,60 @@ class _ChatScreenState extends State<ChatScreen> {
     }
   }
 
+  Future<void> _initLocalDraftStorage() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final draft = prefs.getString(_draftStorageKey);
+
+      if (!mounted) {
+        return;
+      }
+
+      _prefs = prefs;
+      if (draft == null || draft.isEmpty) {
+        return;
+      }
+
+      _isRestoringDraft = true;
+      try {
+        _messageController.text = draft;
+        _messageController.selection = TextSelection.fromPosition(
+          TextPosition(offset: draft.length),
+        );
+      } finally {
+        _isRestoringDraft = false;
+      }
+    } catch (_) {
+      // ignore
+    }
+  }
+
+  void _persistDraft() {
+    if (_isRestoringDraft) {
+      return;
+    }
+
+    final prefs = _prefs;
+    if (prefs == null) {
+      return;
+    }
+
+    final value = _messageController.text;
+    if (value.trim().isEmpty) {
+      prefs.remove(_draftStorageKey);
+      return;
+    }
+    prefs.setString(_draftStorageKey, value);
+  }
+
+  Future<void> _clearLocalDraft() async {
+    final prefs = _prefs;
+    if (prefs == null) {
+      return;
+    }
+    await prefs.remove(_draftStorageKey);
+  }
+
   Future<void> _fetchMessages({
     required int sinceId,
     bool replace = false,
@@ -110,6 +173,12 @@ class _ChatScreenState extends State<ChatScreen> {
       } else {
         _messages.addAll(nextMessages);
       }
+
+      _playIncomingMessageSound(
+        nextMessages,
+        replace: replace,
+        sinceId: sinceId,
+      );
 
       for (final message in nextMessages) {
         if (message.id > _lastMessageId) {
@@ -147,6 +216,29 @@ class _ChatScreenState extends State<ChatScreen> {
       }
     } finally {
       _isFetching = false;
+    }
+  }
+
+  void _playIncomingMessageSound(
+    List<ChatMessage> nextMessages, {
+    required bool replace,
+    required int sinceId,
+  }) {
+    if (replace || sinceId <= 0) {
+      return;
+    }
+
+    final hasIncomingMessage = nextMessages.any(
+      (message) => message.senderId == widget.peer.id,
+    );
+    if (!hasIncomingMessage) {
+      return;
+    }
+
+    try {
+      FlutterRingtonePlayer().playNotification();
+    } catch (_) {
+      // ignore
     }
   }
 
@@ -271,6 +363,7 @@ class _ChatScreenState extends State<ChatScreen> {
       }
 
       _messageController.clear();
+      await _clearLocalDraft();
       if (mounted) {
         setState(() {
           _errorMessage = null;
