@@ -639,8 +639,6 @@ class _UsersScreenState extends State<UsersScreen> with WidgetsBindingObserver {
                                   context,
                                 ).textTheme.headlineSmall,
                               ),
-                              const SizedBox(height: 4),
-                              Text('ID utilisateur: ${widget.session.id}'),
                               const SizedBox(height: 6),
                               Text(
                                 statusText,
