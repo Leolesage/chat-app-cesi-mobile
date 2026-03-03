@@ -7,8 +7,8 @@ class NotificationSoundService {
     try {
       await _player.stop();
       await _player.play(
-        AssetSource('sounds/notify.wav'),
-        mode: PlayerMode.lowLatency,
+        AssetSource('sounds/videoplayback.mp4'),
+        mode: PlayerMode.mediaPlayer,
         volume: 1.0,
       );
     } catch (_) {
