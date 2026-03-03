@@ -597,13 +597,6 @@ class _ChatScreenState extends State<ChatScreen> {
                   ),
                   child: Row(
                     children: [
-                      IconButton(
-                        onPressed: () {},
-                        icon: Icon(
-                          Icons.add_circle_outline,
-                          color: colorScheme.primary,
-                        ),
-                      ),
                       Expanded(
                         child: TextField(
                           controller: _messageController,
