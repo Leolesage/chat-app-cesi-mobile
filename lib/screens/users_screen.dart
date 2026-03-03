@@ -24,8 +24,7 @@ class UsersScreen extends StatefulWidget {
   State<UsersScreen> createState() => _UsersScreenState();
 }
 
-class _UsersScreenState extends State<UsersScreen>
-    with WidgetsBindingObserver {
+class _UsersScreenState extends State<UsersScreen> with WidgetsBindingObserver {
   final _searchController = TextEditingController();
   List<UserSummary> _friends = [];
   List<UserSummary> _discoverUsers = [];
@@ -92,9 +91,9 @@ class _UsersScreenState extends State<UsersScreen>
       return;
     }
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   void _startPresence() {
@@ -286,39 +285,10 @@ class _UsersScreenState extends State<UsersScreen>
     }
 
     return requests
-        .where((request) =>
-            request.fromUser.username.toLowerCase().contains(_query))
+        .where(
+          (request) => request.fromUser.username.toLowerCase().contains(_query),
+        )
         .toList();
-  }
-
-  int _streakForUser(UserSummary user) {
-    if (_isLeoAntoinePair(user)) {
-      return 12;
-    }
-    final seed = user.username.codeUnits.fold<int>(0, (sum, unit) => sum + unit);
-    return 1 + (seed % 12);
-  }
-
-  bool _isBestFriend(UserSummary user) {
-    if (_isLeoAntoinePair(user)) {
-      return true;
-    }
-    final seed = user.username.codeUnits.fold<int>(0, (sum, unit) => sum + unit);
-    return seed % 5 == 0;
-  }
-
-  bool _isLeoAntoinePair(UserSummary user) {
-    final a = widget.session.username.toLowerCase();
-    final b = user.username.toLowerCase();
-    final isLeoAntoine =
-        (a == 'leo' && b == 'antoine') || (a == 'antoine' && b == 'leo');
-    return isLeoAntoine;
-  }
-
-  List<UserSummary> _topFriends(List<UserSummary> users) {
-    final sorted = [...users];
-    sorted.sort((a, b) => _streakForUser(b).compareTo(_streakForUser(a)));
-    return sorted.take(5).toList();
   }
 
   String _formatLastSeen(DateTime? lastSeenAt) {
@@ -337,6 +307,62 @@ class _UsersScreenState extends State<UsersScreen>
       return 'Vu il y a ${diff.inHours} h';
     }
     return 'Vu il y a ${diff.inDays} j';
+  }
+
+  String _tabLabel(int index) {
+    if (index == 1) {
+      return 'Invitations';
+    }
+    if (index == 2) {
+      return 'Trouver';
+    }
+    return 'Chats';
+  }
+
+  int? _bestFriendId(List<UserSummary> users) {
+    if (users.isEmpty) {
+      return null;
+    }
+
+    final sorted = [...users]
+      ..sort((a, b) {
+        final byName = a.username.toLowerCase().compareTo(
+          b.username.toLowerCase(),
+        );
+        if (byName != 0) {
+          return byName;
+        }
+        return a.id.compareTo(b.id);
+      });
+
+    return sorted.first.id;
+  }
+
+  Widget _buildTabMenuButton({required int index, required String label}) {
+    final selected = _activeTabIndex == index;
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return OutlinedButton(
+      onPressed: () => _setActiveTab(index),
+      style: OutlinedButton.styleFrom(
+        backgroundColor: selected
+            ? colorScheme.primaryContainer
+            : Colors.white.withOpacity(0.9),
+        side: BorderSide(
+          color: selected
+              ? colorScheme.primary
+              : colorScheme.outline.withOpacity(0.35),
+        ),
+        shape: const StadiumBorder(),
+        padding: const EdgeInsets.symmetric(vertical: 10),
+      ),
+      child: Text(
+        label,
+        style: Theme.of(
+          context,
+        ).textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w600),
+      ),
+    );
   }
 
   void _setActiveTab(int index) {
@@ -418,7 +444,6 @@ class _UsersScreenState extends State<UsersScreen>
         ? 'Compte cree avec succes.'
         : 'Connexion reussie.';
     final filteredFriends = _filterUsers(_friends);
-    final topFriends = _topFriends(filteredFriends);
 
     return Scaffold(
       appBar: AppBar(
@@ -459,28 +484,25 @@ class _UsersScreenState extends State<UsersScreen>
                             children: [
                               Text(
                                 widget.session.username,
-                                style:
-                                    Theme.of(context).textTheme.headlineSmall,
+                                style: Theme.of(
+                                  context,
+                                ).textTheme.headlineSmall,
                               ),
                               const SizedBox(height: 4),
                               Text('ID utilisateur: ${widget.session.id}'),
                               const SizedBox(height: 6),
                               Text(
                                 statusText,
-                                style: Theme.of(context)
-                                    .textTheme
-                                    .bodySmall
+                                style: Theme.of(context).textTheme.bodySmall
                                     ?.copyWith(
-                                      color: Theme.of(context)
-                                          .colorScheme
-                                          .onSurface
-                                          .withOpacity(0.7),
+                                      color: Theme.of(
+                                        context,
+                                      ).colorScheme.onSurface.withOpacity(0.7),
                                     ),
                               ),
                             ],
                           ),
                         ),
-                        const Chip(label: Text('Flamme 12')),
                       ],
                     ),
                   ),
@@ -505,22 +527,16 @@ class _UsersScreenState extends State<UsersScreen>
                 const SizedBox(height: 12),
                 Row(
                   children: [
-                    ChoiceChip(
-                      label: const Text('Chats'),
-                      selected: _activeTabIndex == 0,
-                      onSelected: (_) => _setActiveTab(0),
+                    Expanded(
+                      child: _buildTabMenuButton(index: 0, label: _tabLabel(0)),
                     ),
                     const SizedBox(width: 10),
-                    ChoiceChip(
-                      label: const Text('Invitations'),
-                      selected: _activeTabIndex == 1,
-                      onSelected: (_) => _setActiveTab(1),
+                    Expanded(
+                      child: _buildTabMenuButton(index: 1, label: _tabLabel(1)),
                     ),
                     const SizedBox(width: 10),
-                    ChoiceChip(
-                      label: const Text('Trouver'),
-                      selected: _activeTabIndex == 2,
-                      onSelected: (_) => _setActiveTab(2),
+                    Expanded(
+                      child: _buildTabMenuButton(index: 2, label: _tabLabel(2)),
                     ),
                   ],
                 ),
@@ -535,70 +551,12 @@ class _UsersScreenState extends State<UsersScreen>
                   ),
                 ),
                 const SizedBox(height: 16),
-                if (_activeTabIndex == 0 && topFriends.isNotEmpty) ...[
-                  Text(
-                    'Amis de flamme',
-                    style: Theme.of(context).textTheme.titleMedium,
-                  ),
-                  const SizedBox(height: 12),
-                  SizedBox(
-                    height: 126,
-                    child: ListView.separated(
-                      scrollDirection: Axis.horizontal,
-                      itemCount: topFriends.length,
-                      separatorBuilder: (_, __) => const SizedBox(width: 12),
-                      itemBuilder: (context, index) {
-                        final friend = topFriends[index];
-                        final streak = _streakForUser(friend);
-                        return Container(
-                          width: 124,
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.96),
-                            borderRadius: BorderRadius.circular(18),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withOpacity(0.05),
-                                blurRadius: 12,
-                                offset: const Offset(0, 6),
-                              ),
-                            ],
-                          ),
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              UserAvatar(
-                                label: friend.username,
-                                isOnline: friend.isOnline,
-                              ),
-                              const SizedBox(height: 8),
-                              Text(
-                                friend.username,
-                                overflow: TextOverflow.ellipsis,
-                                style: Theme.of(context).textTheme.bodyMedium,
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                'Flamme $streak',
-                                style: Theme.of(context)
-                                    .textTheme
-                                    .labelSmall
-                                    ?.copyWith(fontWeight: FontWeight.w600),
-                              ),
-                            ],
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                ],
                 Expanded(
                   child: _activeTabIndex == 0
                       ? _buildFriendsList(filteredFriends)
                       : _activeTabIndex == 1
-                          ? _buildRequestsList(_filterRequests(_requests))
-                          : _buildDiscoverList(_discoverUsers),
+                      ? _buildRequestsList(_filterRequests(_requests))
+                      : _buildDiscoverList(_discoverUsers),
                 ),
               ],
             ),
@@ -620,10 +578,7 @@ class _UsersScreenState extends State<UsersScreen>
           children: [
             Text(_friendsError!),
             const SizedBox(height: 12),
-            ElevatedButton(
-              onPressed: _refresh,
-              child: const Text('Reessayer'),
-            ),
+            ElevatedButton(onPressed: _refresh, child: const Text('Reessayer')),
           ],
         ),
       );
@@ -647,19 +602,20 @@ class _UsersScreenState extends State<UsersScreen>
       );
     }
 
+    final bestFriendId = _bestFriendId(friends);
+
     return RefreshIndicator(
       onRefresh: _refresh,
       child: ListView.separated(
         physics: const AlwaysScrollableScrollPhysics(),
         itemCount: friends.length,
-        separatorBuilder: (_, __) => const SizedBox(height: 12),
+        separatorBuilder: (context, index) => const SizedBox(height: 12),
         itemBuilder: (context, index) {
           final user = friends[index];
+          final isBestFriend = user.id == bestFriendId;
           final statusText = user.isOnline
               ? 'En ligne'
               : _formatLastSeen(user.lastSeenAt);
-          final streak = _streakForUser(user);
-          final isBestFriend = _isBestFriend(user);
 
           return Card(
             child: ListTile(
@@ -681,30 +637,20 @@ class _UsersScreenState extends State<UsersScreen>
                         vertical: 4,
                       ),
                       decoration: BoxDecoration(
-                        color: Theme.of(context)
-                            .colorScheme
-                            .primaryContainer,
+                        color: Theme.of(context).colorScheme.primaryContainer,
                         borderRadius: BorderRadius.circular(999),
                       ),
                       child: Text(
                         'Meilleur ami',
-                        style: Theme.of(context)
-                            .textTheme
-                            .labelSmall
-                            ?.copyWith(fontWeight: FontWeight.w600),
+                        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                     ),
                 ],
               ),
               subtitle: Text(statusText),
-              trailing: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text('Flamme $streak'),
-                  const SizedBox(width: 8),
-                  const Icon(Icons.chevron_right),
-                ],
-              ),
+              trailing: const Icon(Icons.chevron_right),
               onTap: () => _openChat(user),
             ),
           );
@@ -725,10 +671,7 @@ class _UsersScreenState extends State<UsersScreen>
           children: [
             Text(_requestsError!),
             const SizedBox(height: 12),
-            ElevatedButton(
-              onPressed: _refresh,
-              child: const Text('Reessayer'),
-            ),
+            ElevatedButton(onPressed: _refresh, child: const Text('Reessayer')),
           ],
         ),
       );
@@ -752,7 +695,7 @@ class _UsersScreenState extends State<UsersScreen>
       child: ListView.separated(
         physics: const AlwaysScrollableScrollPhysics(),
         itemCount: requests.length,
-        separatorBuilder: (_, __) => const SizedBox(height: 12),
+        separatorBuilder: (context, index) => const SizedBox(height: 12),
         itemBuilder: (context, index) {
           final request = requests[index];
           final user = request.fromUser;
@@ -805,10 +748,7 @@ class _UsersScreenState extends State<UsersScreen>
           children: [
             Text(_discoverError!),
             const SizedBox(height: 12),
-            ElevatedButton(
-              onPressed: _refresh,
-              child: const Text('Reessayer'),
-            ),
+            ElevatedButton(onPressed: _refresh, child: const Text('Reessayer')),
           ],
         ),
       );
@@ -832,7 +772,7 @@ class _UsersScreenState extends State<UsersScreen>
       child: ListView.separated(
         physics: const AlwaysScrollableScrollPhysics(),
         itemCount: users.length,
-        separatorBuilder: (_, __) => const SizedBox(height: 12),
+        separatorBuilder: (context, index) => const SizedBox(height: 12),
         itemBuilder: (context, index) {
           final user = users[index];
           final statusText = user.isOnline

@@ -66,9 +66,9 @@ class _ChatScreenState extends State<ChatScreen> {
       return;
     }
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   Future<void> _loadInitial() async {
@@ -87,7 +87,10 @@ class _ChatScreenState extends State<ChatScreen> {
     }
   }
 
-  Future<void> _fetchMessages({required int sinceId, bool replace = false}) async {
+  Future<void> _fetchMessages({
+    required int sinceId,
+    bool replace = false,
+  }) async {
     if (_isFetching) {
       return;
     }
@@ -149,8 +152,10 @@ class _ChatScreenState extends State<ChatScreen> {
 
   Future<void> _markReadIfNeeded() async {
     final unreadFromPeer = _messages
-        .where((message) =>
-            message.senderId == widget.peer.id && message.readAt == null)
+        .where(
+          (message) =>
+              message.senderId == widget.peer.id && message.readAt == null,
+        )
         .toList();
 
     if (unreadFromPeer.isEmpty) {
@@ -285,6 +290,48 @@ class _ChatScreenState extends State<ChatScreen> {
     }
   }
 
+  Future<void> _deleteMessage(ChatMessage message) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Supprimer le message'),
+        content: const Text('Ce message sera retire pour tout le chat.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Annuler'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Supprimer'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) {
+      return;
+    }
+
+    try {
+      await widget.apiClient.deleteMessage(
+        userId: widget.session.id,
+        messageId: message.id,
+      );
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _messages.removeWhere((item) => item.id == message.id);
+      });
+      _showMessage('Message supprime');
+    } on ApiException catch (error) {
+      _showMessage(error.message);
+    } catch (_) {
+      _showMessage('Impossible de supprimer le message');
+    }
+  }
+
   void _scrollToBottom() {
     if (!_scrollController.hasClients) {
       return;
@@ -333,18 +380,15 @@ class _ChatScreenState extends State<ChatScreen> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(
-            Icons.error_outline,
-            color: colorScheme.onErrorContainer,
-          ),
+          Icon(Icons.error_outline, color: colorScheme.onErrorContainer),
           const SizedBox(width: 10),
           Expanded(
             child: Text(
               _errorMessage!,
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: colorScheme.onErrorContainer,
-                    fontWeight: FontWeight.w600,
-                  ),
+                color: colorScheme.onErrorContainer,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ),
           const SizedBox(width: 8),
@@ -375,26 +419,12 @@ class _ChatScreenState extends State<ChatScreen> {
     return 'Vu il y a ${diff.inDays} j';
   }
 
-  int _streakForPeer() {
-    if (_isLeoAntoinePair()) {
-      return 12;
-    }
-    final seed =
-        widget.peer.username.codeUnits.fold<int>(0, (sum, unit) => sum + unit);
-    return 1 + (seed % 12);
-  }
-
-  bool _isLeoAntoinePair() {
-    final a = widget.session.username.toLowerCase();
-    final b = widget.peer.username.toLowerCase();
-    return (a == 'leo' && b == 'antoine') || (a == 'antoine' && b == 'leo');
-  }
-
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    final statusText = _peerOnline ? 'En ligne' : _formatLastSeen(_peerLastSeen);
-    final streak = _streakForPeer();
+    final statusText = _peerOnline
+        ? 'En ligne'
+        : _formatLastSeen(_peerLastSeen);
 
     return Scaffold(
       appBar: AppBar(
@@ -411,26 +441,25 @@ class _ChatScreenState extends State<ChatScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(widget.peer.username),
-                Text(
-                  statusText,
-                  style: Theme.of(context).textTheme.bodySmall,
-                ),
+                Text(statusText, style: Theme.of(context).textTheme.bodySmall),
               ],
             ),
           ],
         ),
         actions: [
-          Padding(
-            padding: const EdgeInsets.only(right: 8),
-            child: Chip(
-              label: Text('Flamme $streak'),
-              padding: const EdgeInsets.symmetric(horizontal: 8),
-            ),
-          ),
-          IconButton(
-            tooltip: 'Plus',
-            onPressed: () {},
-            icon: const Icon(Icons.more_vert),
+          PopupMenuButton<String>(
+            tooltip: 'Options',
+            onSelected: (value) {
+              if (value == 'refresh') {
+                _loadInitial();
+              }
+            },
+            itemBuilder: (context) => const [
+              PopupMenuItem<String>(
+                value: 'refresh',
+                child: Text('Rafraichir'),
+              ),
+            ],
           ),
         ],
       ),
@@ -442,20 +471,23 @@ class _ChatScreenState extends State<ChatScreen> {
               child: _isLoading
                   ? const Center(child: CircularProgressIndicator())
                   : _messages.isEmpty
-                      ? _buildEmptyState()
-                      : ListView.builder(
-                          controller: _scrollController,
-                          padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-                          physics: const BouncingScrollPhysics(),
-                          itemCount: _messages.length,
-                          itemBuilder: (context, index) {
-                            final message = _messages[index];
-                            return MessageBubble(
-                              message: message,
-                              isMe: message.senderId == widget.session.id,
-                            );
-                          },
-                        ),
+                  ? _buildEmptyState()
+                  : ListView.builder(
+                      controller: _scrollController,
+                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                      physics: const BouncingScrollPhysics(),
+                      itemCount: _messages.length,
+                      itemBuilder: (context, index) {
+                        final message = _messages[index];
+                        return MessageBubble(
+                          message: message,
+                          isMe: message.senderId == widget.session.id,
+                          onDeleteMessage: message.senderId == widget.session.id
+                              ? () => _deleteMessage(message)
+                              : null,
+                        );
+                      },
+                    ),
             ),
             Container(
               decoration: BoxDecoration(

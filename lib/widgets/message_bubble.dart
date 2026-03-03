@@ -2,15 +2,19 @@ import 'package:flutter/material.dart';
 
 import '../models/message.dart';
 
+enum _MessageAction { delete }
+
 class MessageBubble extends StatelessWidget {
   const MessageBubble({
     super.key,
     required this.message,
     required this.isMe,
+    this.onDeleteMessage,
   });
 
   final ChatMessage message;
   final bool isMe;
+  final VoidCallback? onDeleteMessage;
 
   @override
   Widget build(BuildContext context) {
@@ -28,6 +32,7 @@ class MessageBubble extends StatelessWidget {
         : '${createdAt.hour.toString().padLeft(2, '0')}:${createdAt.minute.toString().padLeft(2, '0')}';
 
     final isRead = message.readAt != null;
+    final canDelete = isMe && onDeleteMessage != null;
 
     return Align(
       alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
@@ -53,30 +58,29 @@ class MessageBubble extends StatelessWidget {
             ],
           ),
           child: Column(
-            crossAxisAlignment:
-                isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+            crossAxisAlignment: isMe
+                ? CrossAxisAlignment.end
+                : CrossAxisAlignment.start,
             children: [
               Text(
                 message.body,
-                style: TextStyle(
-                  color: textColor,
-                  fontWeight: FontWeight.w500,
-                ),
+                style: TextStyle(color: textColor, fontWeight: FontWeight.w500),
               ),
-              if (timeLabel != null) ...[
+              if (timeLabel != null || canDelete) ...[
                 const SizedBox(height: 6),
                 Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text(
-                      timeLabel,
-                      style: TextStyle(
-                        color: textColor.withOpacity(0.6),
-                        fontSize: 11,
-                        letterSpacing: 0.4,
+                    if (timeLabel != null)
+                      Text(
+                        timeLabel,
+                        style: TextStyle(
+                          color: textColor.withOpacity(0.6),
+                          fontSize: 11,
+                          letterSpacing: 0.4,
+                        ),
                       ),
-                    ),
-                    if (isMe) ...[
+                    if (isMe && timeLabel != null) ...[
                       const SizedBox(width: 6),
                       Icon(
                         isRead ? Icons.done_all : Icons.check,
@@ -84,6 +88,30 @@ class MessageBubble extends StatelessWidget {
                         color: isRead
                             ? Theme.of(context).colorScheme.primary
                             : textColor.withOpacity(0.6),
+                      ),
+                    ],
+                    if (canDelete) ...[
+                      const SizedBox(width: 4),
+                      PopupMenuButton<_MessageAction>(
+                        tooltip: 'Actions',
+                        padding: EdgeInsets.zero,
+                        iconSize: 16,
+                        splashRadius: 14,
+                        onSelected: (value) {
+                          if (value == _MessageAction.delete) {
+                            onDeleteMessage?.call();
+                          }
+                        },
+                        itemBuilder: (context) => const [
+                          PopupMenuItem<_MessageAction>(
+                            value: _MessageAction.delete,
+                            child: Text('Supprimer'),
+                          ),
+                        ],
+                        icon: Icon(
+                          Icons.more_horiz,
+                          color: textColor.withOpacity(0.7),
+                        ),
                       ),
                     ],
                   ],

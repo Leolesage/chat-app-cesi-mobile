@@ -17,8 +17,8 @@ class ApiException implements Exception {
 
 class ApiClient {
   ApiClient({http.Client? client, String? baseUrl})
-      : _client = client ?? http.Client(),
-        _baseUrl = baseUrl ?? AppConfig.apiBaseUrl;
+    : _client = client ?? http.Client(),
+      _baseUrl = baseUrl ?? AppConfig.apiBaseUrl;
 
   final http.Client _client;
   final String _baseUrl;
@@ -36,10 +36,7 @@ class ApiClient {
         .post(
           _uri('/auth'),
           headers: {'Content-Type': 'application/json'},
-          body: jsonEncode({
-            'username': username,
-            'password': password,
-          }),
+          body: jsonEncode({'username': username, 'password': password}),
         )
         .timeout(AppConfig.requestTimeout);
 
@@ -137,10 +134,12 @@ class ApiClient {
     String query = '',
   }) async {
     final response = await _client
-        .get(_uri('/users/discover', {
-          'user_id': userId.toString(),
-          'query': query,
-        }))
+        .get(
+          _uri('/users/discover', {
+            'user_id': userId.toString(),
+            'query': query,
+          }),
+        )
         .timeout(AppConfig.requestTimeout);
 
     final payload = _decodePayload(response);
@@ -284,6 +283,21 @@ class ApiClient {
     return ChatMessage.fromJson(messageRaw);
   }
 
+  Future<void> deleteMessage({
+    required int userId,
+    required int messageId,
+  }) async {
+    final response = await _client
+        .post(
+          _uri('/messages/delete'),
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode({'user_id': userId, 'message_id': messageId}),
+        )
+        .timeout(AppConfig.requestTimeout);
+
+    _decodePayload(response);
+  }
+
   Future<void> markMessagesRead({
     required int userId,
     required int withId,
@@ -309,10 +323,12 @@ class ApiClient {
     required int withId,
   }) async {
     final response = await _client
-        .get(_uri('/messages/read', {
-          'user_id': userId.toString(),
-          'with_id': withId.toString(),
-        }))
+        .get(
+          _uri('/messages/read', {
+            'user_id': userId.toString(),
+            'with_id': withId.toString(),
+          }),
+        )
         .timeout(AppConfig.requestTimeout);
 
     final payload = _decodePayload(response);
